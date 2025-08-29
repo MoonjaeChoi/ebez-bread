@@ -41,6 +41,7 @@ export class BackupService {
         includeAttendances: true,
         includeVisitations: true,
         includeExpenseReports: true,
+        includeOrganizations: true,
         ...options
       }
 
@@ -102,6 +103,16 @@ export class BackupService {
         dataMap.set(DataType.EXPENSE_REPORTS, this.formatter.formatExpenseReportsData(expenseReports))
         recordCounts[DataType.EXPENSE_REPORTS] = expenseReports.length
         includedTables.push('지출결의서')
+        currentStep += stepIncrement
+      }
+
+      // 조직 데이터
+      if (backupOptions.includeOrganizations) {
+        progressCallback?.(currentStep, '조직도 데이터 조회 중...')
+        const organizations = await this.fetchOrganizationsData()
+        dataMap.set(DataType.ORGANIZATIONS, this.formatter.formatOrganizationsData(organizations))
+        recordCounts[DataType.ORGANIZATIONS] = organizations.length
+        includedTables.push('조직도')
         currentStep += stepIncrement
       }
 
@@ -309,6 +320,23 @@ export class BackupService {
   }
 
   /**
+   * 조직 데이터 조회
+   */
+  private async fetchOrganizationsData(): Promise<any[]> {
+    return await this.prisma.organization.findMany({
+      where: { churchId: this.churchId },
+      include: {
+        parent: { select: { code: true } }
+      },
+      orderBy: [
+        { level: 'asc' },
+        { displayOrder: 'asc' },
+        { name: 'asc' }
+      ]
+    })
+  }
+
+  /**
    * 데이터 타입별 백업 생성
    */
   async createDataTypeBackup(
@@ -342,6 +370,10 @@ export class BackupService {
         case DataType.EXPENSE_REPORTS:
           data = await this.fetchExpenseReportsData(options.dateRange)
           formattedData = this.formatter.formatExpenseReportsData(data)
+          break
+        case DataType.ORGANIZATIONS:
+          data = await this.fetchOrganizationsData()
+          formattedData = this.formatter.formatOrganizationsData(data)
           break
       }
 
@@ -404,7 +436,8 @@ export class BackupService {
         offeringsCount,
         attendancesCount,
         visitationsCount,
-        expenseReportsCount
+        expenseReportsCount,
+        organizationsCount
       ] = await Promise.all([
         this.prisma.member.count({ where: { churchId: this.churchId } }),
         this.prisma.offering.count({ where: { churchId: this.churchId } }),
@@ -412,7 +445,8 @@ export class BackupService {
         this.prisma.visitation.count({
           where: { member: { churchId: this.churchId } }
         }),
-        this.prisma.expenseReport.count({ where: { churchId: this.churchId } })
+        this.prisma.expenseReport.count({ where: { churchId: this.churchId } }),
+        this.prisma.organization.count({ where: { churchId: this.churchId } })
       ])
 
       const totalRecords = {
@@ -420,7 +454,8 @@ export class BackupService {
         [DataType.OFFERINGS]: offeringsCount,
         [DataType.ATTENDANCES]: attendancesCount,
         [DataType.VISITATIONS]: visitationsCount,
-        [DataType.EXPENSE_REPORTS]: expenseReportsCount
+        [DataType.EXPENSE_REPORTS]: expenseReportsCount,
+        [DataType.ORGANIZATIONS]: organizationsCount
       }
 
       // 최근 업데이트 날짜 조회
@@ -429,7 +464,8 @@ export class BackupService {
         lastOfferingUpdate,
         lastAttendanceUpdate,
         lastVisitationUpdate,
-        lastExpenseUpdate
+        lastExpenseUpdate,
+        lastOrganizationUpdate
       ] = await Promise.all([
         this.prisma.member.findFirst({
           where: { churchId: this.churchId },
@@ -455,6 +491,11 @@ export class BackupService {
           where: { churchId: this.churchId },
           orderBy: { updatedAt: 'desc' },
           select: { updatedAt: true }
+        }),
+        this.prisma.organization.findFirst({
+          where: { churchId: this.churchId },
+          orderBy: { updatedAt: 'desc' },
+          select: { updatedAt: true }
         })
       ])
 
@@ -463,7 +504,8 @@ export class BackupService {
         [DataType.OFFERINGS]: lastOfferingUpdate?.updatedAt || null,
         [DataType.ATTENDANCES]: lastAttendanceUpdate?.updatedAt || null,
         [DataType.VISITATIONS]: lastVisitationUpdate?.updatedAt || null,
-        [DataType.EXPENSE_REPORTS]: lastExpenseUpdate?.updatedAt || null
+        [DataType.EXPENSE_REPORTS]: lastExpenseUpdate?.updatedAt || null,
+        [DataType.ORGANIZATIONS]: lastOrganizationUpdate?.updatedAt || null
       }
 
       // 예상 파일 크기 계산 (대략적)
@@ -499,6 +541,7 @@ export class BackupService {
     if (options.includeAttendances) count++
     if (options.includeVisitations) count++
     if (options.includeExpenseReports) count++
+    if (options.includeOrganizations) count++
     return count
   }
 
@@ -532,6 +575,7 @@ export class BackupService {
       case DataType.ATTENDANCES: return '출석현황'
       case DataType.VISITATIONS: return '심방기록'
       case DataType.EXPENSE_REPORTS: return '지출결의서'
+      case DataType.ORGANIZATIONS: return '조직도'
       default: return '데이터'
     }
   }

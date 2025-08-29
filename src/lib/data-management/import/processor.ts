@@ -10,6 +10,7 @@ import {
   AttendanceImportData,
   VisitationImportData,
   ExpenseReportImportData,
+  OrganizationImportData,
   BatchProcessingOptions
 } from '../types'
 import { logger } from '@/lib/logger'
@@ -64,6 +65,9 @@ export class DataProcessor {
           break
         case DataType.EXPENSE_REPORTS:
           result = await this.processExpenseReportsData(validatedData, fullOptions, batchOptions)
+          break
+        case DataType.ORGANIZATIONS:
+          result = await this.processOrganizationsData(validatedData, fullOptions, batchOptions)
           break
         default:
           throw new Error(`지원하지 않는 데이터 타입입니다: ${dataType}`)
@@ -736,6 +740,196 @@ export class DataProcessor {
   }
 
   /**
+   * 조직 데이터 처리
+   */
+  private async processOrganizationsData(
+    data: OrganizationImportData[],
+    options: ImportOptions,
+    batchOptions: BatchProcessingOptions
+  ): Promise<ImportResult> {
+    const savedData: any[] = []
+    const errors: ImportError[] = []
+
+    // 기존 조직 매핑 정보 미리 조회
+    const existingOrganizations = await this.prisma.organization.findMany({
+      where: { churchId: this.churchId },
+      select: { id: true, code: true, name: true }
+    })
+
+    // 계층 구조를 위해 레벨별로 정렬하여 처리
+    const sortedData = this.sortOrganizationsByLevel(data)
+    
+    // 배치 처리
+    const batches = this.createBatches(sortedData, batchOptions.batchSize || 100)
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex]
+      
+      batchOptions.onProgress?.(
+        Math.floor((batchIndex / batches.length) * 80) + 10,
+        `${batchIndex + 1}/${batches.length} 배치 처리 중...`
+      )
+
+      const batchResults = await this.processOrganizationsBatch(
+        batch,
+        options,
+        existingOrganizations,
+        batchIndex * (batchOptions.batchSize || 100)
+      )
+
+      savedData.push(...batchResults.saved)
+      errors.push(...batchResults.errors)
+      
+      // 새로 생성된 조직을 기존 조직 목록에 추가
+      existingOrganizations.push(...batchResults.saved.map(org => ({
+        id: org.id,
+        code: org.code,
+        name: org.name
+      })))
+    }
+
+    return {
+      success: savedData.length > 0,
+      data: savedData,
+      errors,
+      summary: {
+        total: data.length,
+        successful: savedData.length,
+        failed: data.length - savedData.length
+      }
+    }
+  }
+
+  /**
+   * 조직 배치 처리
+   */
+  private async processOrganizationsBatch(
+    batch: OrganizationImportData[],
+    options: ImportOptions,
+    existingOrganizations: { id: string; code: string; name: string }[],
+    batchOffset: number
+  ): Promise<{ saved: any[]; errors: ImportError[] }> {
+    const saved: any[] = []
+    const errors: ImportError[] = []
+
+    for (let i = 0; i < batch.length; i++) {
+      const orgData = batch[i]
+      const rowIndex = batchOffset + i + 1
+
+      try {
+        // 상위조직 ID 조회
+        const parentId = orgData.parentCode 
+          ? existingOrganizations.find(org => org.code === orgData.parentCode)?.id
+          : null
+
+        // Enum 값 변환
+        const processedData = this.convertOrganizationEnums(orgData)
+
+        let organization
+        if (options.updateExisting) {
+          // 기존 조직 찾기 (코드로)
+          const existingOrg = await this.prisma.organization.findFirst({
+            where: {
+              churchId: this.churchId,
+              code: processedData.code
+            }
+          })
+
+          if (existingOrg) {
+            // 기존 조직 업데이트
+            organization = await this.prisma.organization.update({
+              where: { id: existingOrg.id },
+              data: {
+                name: processedData.name,
+                level: processedData.level,
+                parentId,
+                description: processedData.description,
+                isActive: processedData.isActive,
+                phone: processedData.phone,
+                email: processedData.email,
+                address: processedData.address,
+                managerName: processedData.managerName
+              }
+            })
+          } else {
+            // 새 조직 생성
+            organization = await this.prisma.organization.create({
+              data: {
+                churchId: this.churchId,
+                code: processedData.code,
+                name: processedData.name,
+                level: processedData.level,
+                parentId,
+                description: processedData.description,
+                isActive: processedData.isActive !== false,
+                phone: processedData.phone,
+                email: processedData.email,
+                address: processedData.address,
+                managerName: processedData.managerName
+              }
+            })
+          }
+        } else {
+          // 새 조직 생성만
+          organization = await this.prisma.organization.create({
+            data: {
+              churchId: this.churchId,
+              code: processedData.code,
+              name: processedData.name,
+              level: processedData.level,
+              parentId,
+              description: processedData.description,
+              isActive: processedData.isActive !== false,
+              phone: processedData.phone,
+              email: processedData.email,
+              address: processedData.address,
+              managerName: processedData.managerName
+            }
+          })
+        }
+
+        saved.push(organization)
+      } catch (error) {
+        errors.push({
+          row: rowIndex,
+          message: `조직 ${orgData.name} 저장 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+          value: orgData
+        })
+
+        if (!options.skipErrors) {
+          break
+        }
+      }
+    }
+
+    return { saved, errors }
+  }
+
+  /**
+   * 조직을 레벨별로 정렬 (상위 레벨부터 처리하기 위해)
+   */
+  private sortOrganizationsByLevel(data: OrganizationImportData[]): OrganizationImportData[] {
+    const levelOrder = { 'LEVEL_1': 1, '1단계': 1, 'LEVEL_2': 2, '2단계': 2, 'LEVEL_3': 3, '3단계': 3, 'LEVEL_4': 4, '4단계': 4 }
+    
+    return [...data].sort((a, b) => {
+      const aLevel = levelOrder[a.level as keyof typeof levelOrder] || 999
+      const bLevel = levelOrder[b.level as keyof typeof levelOrder] || 999
+      return aLevel - bLevel
+    })
+  }
+
+  /**
+   * 조직 Enum 값 변환
+   */
+  private convertOrganizationEnums(data: OrganizationImportData): any {
+    return {
+      ...data,
+      level: this.convertOrganizationLevel(data.level),
+      isActive: this.convertBooleanValue(data.isActive)
+    }
+  }
+
+  /**
    * 배치 생성
    */
   private createBatches<T>(data: T[], batchSize: number): T[][] {
@@ -869,5 +1063,24 @@ export class DataProcessor {
       '거부': 'REJECTED'
     }
     return mapping[str] || value
+  }
+
+  private convertOrganizationLevel(value: any): string {
+    if (!value) return 'LEVEL_1'
+    const str = String(value)
+    const mapping: { [key: string]: string } = {
+      '1단계': 'LEVEL_1',
+      '2단계': 'LEVEL_2',
+      '3단계': 'LEVEL_3',
+      '4단계': 'LEVEL_4'
+    }
+    return mapping[str] || value
+  }
+
+  private convertBooleanValue(value: any): boolean {
+    if (typeof value === 'boolean') return value
+    if (!value) return true // 기본값: 활성
+    const str = String(value).toLowerCase()
+    return ['예', 'true', '1', 'yes', 'y'].includes(str)
   }
 }

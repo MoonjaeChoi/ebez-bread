@@ -4,13 +4,15 @@ import {
   Attendance, 
   Visitation, 
   ExpenseReport,
+  Organization,
   Gender,
   MaritalStatus,
   MemberStatus,
   FamilyRelation,
   OfferingType,
   ServiceType,
-  ReportStatus
+  ReportStatus,
+  OrganizationLevel
 } from '@prisma/client'
 
 // 공통 인터페이스
@@ -125,13 +127,32 @@ export interface ExpenseReportExportData extends Omit<ExpenseReport, 'churchId' 
   requesterName: string
 }
 
+// 조직 데이터 타입
+export interface OrganizationImportData {
+  code: string
+  name: string
+  level: OrganizationLevel | string
+  parentCode?: string  // 부모 조직 코드 (실제 Parent ID로 변환됨)
+  description?: string
+  isActive?: boolean | string
+  phone?: string
+  email?: string
+  address?: string
+  managerName?: string
+}
+
+export interface OrganizationExportData extends Omit<Organization, 'churchId' | 'parentId'> {
+  parentCode?: string
+}
+
 // 데이터 타입 열거형
 export enum DataType {
   MEMBERS = 'members',
   OFFERINGS = 'offerings',
   ATTENDANCES = 'attendances',
   VISITATIONS = 'visitations',
-  EXPENSE_REPORTS = 'expense_reports'
+  EXPENSE_REPORTS = 'expense_reports',
+  ORGANIZATIONS = 'organizations'
 }
 
 // 파일 포맷 열거형
@@ -173,6 +194,7 @@ export interface BackupOptions {
   includeAttendances?: boolean
   includeVisitations?: boolean
   includeExpenseReports?: boolean
+  includeOrganizations?: boolean
   dateRange?: {
     start: Date
     end: Date

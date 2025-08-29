@@ -367,13 +367,15 @@ export class DataManagementService {
         offeringsCount,
         attendancesCount,
         visitationsCount,
-        expenseReportsCount
+        expenseReportsCount,
+        organizationsCount
       ] = await Promise.all([
         this.prisma.member.count({ where: { churchId: this.churchId } }),
         this.prisma.offering.count({ where: { churchId: this.churchId } }),
         this.prisma.attendance.count({ where: { churchId: this.churchId } }),
         this.prisma.visitation.count({ where: { churchId: this.churchId } }),
-        this.prisma.expenseReport.count({ where: { churchId: this.churchId } })
+        this.prisma.expenseReport.count({ where: { churchId: this.churchId } }),
+        this.prisma.organization.count({ where: { churchId: this.churchId } })
       ])
 
       return {
@@ -381,7 +383,8 @@ export class DataManagementService {
         [DataType.OFFERINGS]: offeringsCount,
         [DataType.ATTENDANCES]: attendancesCount,
         [DataType.VISITATIONS]: visitationsCount,
-        [DataType.EXPENSE_REPORTS]: expenseReportsCount
+        [DataType.EXPENSE_REPORTS]: expenseReportsCount,
+        [DataType.ORGANIZATIONS]: organizationsCount
       }
     } catch (error) {
       logger.error('Failed to get data stats', error instanceof Error ? error : new Error(String(error)), {
@@ -449,6 +452,19 @@ export class DataManagementService {
           거부일: '',
           거부사유: ''
         }]
+      case DataType.ORGANIZATIONS:
+        return [{
+          코드: 'EBC001',
+          이름: '에베네셀교회',
+          조직단계: 'LEVEL_1',
+          상위조직코드: '',
+          설명: '본 교회',
+          활성상태: '예',
+          전화번호: '02-1234-5678',
+          이메일: 'info@ebenezer.org',
+          주소: '서울시 강남구 삼성동',
+          담당자: '김목사'
+        }]
       default:
         return []
     }
@@ -461,6 +477,7 @@ export class DataManagementService {
       case DataType.ATTENDANCES: return '출석현황'
       case DataType.VISITATIONS: return '심방기록'
       case DataType.EXPENSE_REPORTS: return '지출결의서'
+      case DataType.ORGANIZATIONS: return '조직도'
       default: return '데이터'
     }
   }

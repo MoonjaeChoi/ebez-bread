@@ -211,6 +211,7 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
                     <SelectItem value={DataType.ATTENDANCES}>출석 현황</SelectItem>
                     <SelectItem value={DataType.VISITATIONS}>심방 기록</SelectItem>
                     <SelectItem value={DataType.EXPENSE_REPORTS}>지출결의서</SelectItem>
+                    <SelectItem value={DataType.ORGANIZATIONS}>조직도</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

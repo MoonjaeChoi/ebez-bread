@@ -17,7 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Archive, CalendarIcon, CheckCircle, Database } from 'lucide-react'
+import { Archive, CalendarIcon, CheckCircle, Database, Building2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -38,6 +38,7 @@ interface BackupOptions {
   includeAttendances: boolean
   includeVisitations: boolean
   includeExpenseReports: boolean
+  includeOrganizations: boolean
   dateRange?: DateRange
   filename: string
 }
@@ -53,6 +54,7 @@ export function BackupDialog({ children }: BackupDialogProps) {
     includeAttendances: true,
     includeVisitations: true,
     includeExpenseReports: true,
+    includeOrganizations: true,
     filename: ''
   })
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined })
@@ -74,6 +76,7 @@ export function BackupDialog({ children }: BackupDialogProps) {
       includeAttendances: true,
       includeVisitations: true,
       includeExpenseReports: true,
+      includeOrganizations: true,
       filename: ''
     })
     setDateRange({ from: undefined, to: undefined })
@@ -266,6 +269,18 @@ export function BackupDialog({ children }: BackupDialogProps) {
                     <Label htmlFor="expenseReports" className="flex items-center gap-2">
                       <Database className="h-4 w-4" />
                       지출결의서
+                    </Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="organizations"
+                      checked={options.includeOrganizations}
+                      onCheckedChange={(checked) => updateOption('includeOrganizations', !!checked)}
+                    />
+                    <Label htmlFor="organizations" className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4" />
+                      조직도
                     </Label>
                   </div>
                 </CardContent>

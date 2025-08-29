@@ -37,6 +37,8 @@ model Church {
   accountCodes          AccountCode[]
   budgets               Budget[]
   transactions          Transaction[]
+  organizations         Organization[]
+  organizationRoles     OrganizationRole[]
 
   @@map("churches")
 }
@@ -68,6 +70,9 @@ model User {
   // Approval workflow relations
   assignedApprovalSteps ApprovalStep[]      @relation("ApprovalStepAssignee")
   approvalSteps        ApprovalStep[]       @relation("ApprovalStepApprover")
+  
+  // Organization relations
+  responsibleOrganizations Organization[]   @relation("OrganizationResponsible")
 
   @@map("users")
 }
@@ -98,6 +103,10 @@ model Member {
   church           Church          @relation(fields: [churchId], references: [id], onDelete: Cascade)
   department       Department?     @relation(fields: [departmentId], references: [id])
   position         Position?       @relation(fields: [positionId], references: [id])
+  
+  // 다대다 조직 관계 - 새로운 관계 테이블 사용
+  organizationMemberships OrganizationMembership[]
+  
   offerings        Offering[]
   visitations      Visitation[]
 
@@ -210,9 +219,11 @@ model ExpenseReport {
   updatedAt       DateTime        @updatedAt
   churchId        String
   requesterId     String
+  organizationId  String?         // 담당 조직 ID
   church          Church          @relation(fields: [churchId], references: [id], onDelete: Cascade)
   requester       User            @relation("ExpenseRequester", fields: [requesterId], references: [id])
   budgetItem      BudgetItem?     @relation("BudgetItemExpenses", fields: [budgetItemId], references: [id])
+  organization    Organization?   @relation("OrganizationExpenseReports", fields: [organizationId], references: [id])
   approvals       ApprovalStep[]
 
   @@map("expense_reports")
@@ -536,6 +547,7 @@ model Budget {
   // Foreign Keys
   churchId     String
   departmentId String
+  organizationId String?      // 담당 조직 ID
   createdById  String
   approvedById String?
   approvedAt   DateTime?
@@ -543,6 +555,7 @@ model Budget {
   // Relations
   church       Church        @relation(fields: [churchId], references: [id])
   department   Department    @relation(fields: [departmentId], references: [id])
+  organization Organization? @relation("OrganizationBudgets", fields: [organizationId], references: [id])
   createdBy    User          @relation("BudgetCreator", fields: [createdById], references: [id])
   approver     User?         @relation("BudgetApprover", fields: [approvedById], references: [id])
   budgetItems  BudgetItem[]
@@ -563,9 +576,11 @@ model BudgetItem {
   
   // Foreign Keys
   budgetId        String
+  organizationId  String?          // 담당 조직 ID
   
   // Relations
   budget          Budget           @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  organization    Organization?    @relation("OrganizationBudgetItems", fields: [organizationId], references: [id])
   budgetExecution BudgetExecution?
   expenseReports  ExpenseReport[]  @relation("BudgetItemExpenses")
   
@@ -694,4 +709,114 @@ enum ApprovalStatus {
   APPROVED    // 승인됨
   REJECTED    // 반려됨
   SKIPPED     // 생략됨
+}
+
+// 조직 단계 레벨 (4단계 구조)
+enum OrganizationLevel {
+  LEVEL_1     // 1단계: 위원회 (예: 예배찬양위원회)
+  LEVEL_2     // 2단계: 부서 (예: 찬양1부)
+  LEVEL_3     // 3단계: 팀 (예: 호산나찬양대)
+  LEVEL_4     // 4단계: 세부조직 (예: 오케스트라팀)
+}
+
+// 조직구조 모델 (자기참조 구조)
+model Organization {
+  id                String               @id @default(cuid())
+  code              String               @unique // 조직코드 (예: "PW-C1-HO-OR")
+  name              String               // 조직명
+  englishName       String?              // 영문명 (선택사항)
+  level             OrganizationLevel    // 조직 단계
+  description       String?              // 설명
+  isActive          Boolean              @default(true)
+  sortOrder         Int                  @default(0) // 정렬 순서
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  
+  // 계층구조 관계
+  parentId          String?              // 상위 조직 ID
+  parent            Organization?        @relation("OrganizationHierarchy", fields: [parentId], references: [id])
+  children          Organization[]       @relation("OrganizationHierarchy")
+  
+  // 교회 관계
+  churchId          String
+  church            Church               @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  
+  // 예산 관련 관계
+  budgets           Budget[]             @relation("OrganizationBudgets")
+  budgetItems       BudgetItem[]         @relation("OrganizationBudgetItems")
+  
+  // 사용자 관계
+  responsibleUsers  User[]               @relation("OrganizationResponsible") // 담당자들
+  
+  // 다대다 멤버 관계 - 새로운 관계 테이블 사용
+  organizationMemberships OrganizationMembership[]
+  
+  // 지출결의서 관계
+  expenseReports    ExpenseReport[]      @relation("OrganizationExpenseReports")
+
+  @@index([churchId, level])
+  @@index([churchId, parentId])
+  @@index([code])
+  @@map("organizations")
+}
+
+// ===== 조직-교인 다대다 관계 및 직책 관리 모델 =====
+
+// 조직별 직책 정의 모델
+model OrganizationRole {
+  id           String   @id @default(cuid())
+  name         String   // 직책명 (예: "회장", "서기", "교구장")
+  englishName  String?  // 영문 직책명 (선택사항)
+  description  String?  // 직책 설명
+  level        Int      @default(0) // 직책 레벨 (높을수록 상위 직책)
+  sortOrder    Int      @default(0) // 정렬 순서
+  isActive     Boolean  @default(true)
+  isLeadership Boolean  @default(false) // 리더십 직책 여부
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // 교회 관계 (직책은 교회별로 관리)
+  churchId     String
+  church       Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  
+  // 조직-멤버 관계에서 사용
+  memberships  OrganizationMembership[]
+  
+  @@unique([churchId, name]) // 같은 교회 내에서 직책명 중복 방지
+  @@index([churchId, level])
+  @@index([churchId, isLeadership])
+  @@map("organization_roles")
+}
+
+// 조직-교인 다대다 관계 및 직책 정보를 담는 중간 테이블
+model OrganizationMembership {
+  id               String           @id @default(cuid())
+  
+  // 기본 관계
+  memberId         String
+  organizationId   String
+  roleId           String?          // 직책 ID (선택사항 - 직책이 없는 일반 멤버도 있을 수 있음)
+  
+  // 멤버십 정보
+  joinDate         DateTime         @default(now()) // 가입일
+  endDate          DateTime?        // 종료일 (활성 멤버십은 null)
+  isActive         Boolean          @default(true)   // 활성 상태
+  isPrimary        Boolean          @default(false)  // 주 소속 조직 여부
+  
+  // 추가 정보
+  notes            String?          // 비고
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  
+  // Relations
+  member           Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role             OrganizationRole? @relation(fields: [roleId], references: [id])
+  
+  @@unique([memberId, organizationId, isActive]) // 한 교인이 같은 조직에서 동시에 활성 멤버십을 하나만 가질 수 있음
+  @@index([memberId, isActive])
+  @@index([organizationId, isActive])
+  @@index([roleId])
+  @@index([joinDate])
+  @@map("organization_memberships")
 }

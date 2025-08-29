@@ -56,6 +56,7 @@ const backupOptionsSchema = z.object({
   includeAttendances: z.boolean().default(true),
   includeVisitations: z.boolean().default(true),
   includeExpenseReports: z.boolean().default(true),
+  includeOrganizations: z.boolean().default(true),
   dateRange: z.object({
     start: z.string().transform(str => new Date(str)),
     end: z.string().transform(str => new Date(str))

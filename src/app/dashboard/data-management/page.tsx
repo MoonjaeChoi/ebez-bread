@@ -16,6 +16,7 @@ import {
   Calendar,
   MapPin,
   Receipt,
+  Building2,
   AlertTriangle,
   CheckCircle,
   Info
@@ -109,6 +110,15 @@ export default function DataManagementPage() {
       color: 'text-red-600',
       bgColor: 'bg-red-50',
       borderColor: 'border-red-200'
+    },
+    {
+      type: DataType.ORGANIZATIONS,
+      title: '조직도',
+      description: '교회 조직 구조 및 부서 정보',
+      icon: Building2,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      borderColor: 'border-indigo-200'
     }
   ]
 
@@ -491,6 +501,7 @@ export default function DataManagementPage() {
                     <li>• 출석 현황 데이터</li>
                     <li>• 심방 기록 및 상담</li>
                     <li>• 지출결의서 및 회계</li>
+                    <li>• 조직도 및 부서 구조</li>
                   </ul>
                 </div>
 

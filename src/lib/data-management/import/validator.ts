@@ -11,7 +11,8 @@ import {
   OfferingImportData,
   AttendanceImportData,
   VisitationImportData,
-  ExpenseReportImportData
+  ExpenseReportImportData,
+  OrganizationImportData
 } from '../types'
 import { logger } from '@/lib/logger'
 
@@ -167,6 +168,15 @@ export class DataValidator {
         context.existingDepartments = departments
       }
 
+      // 조직 데이터 검증 시 추가 정보 필요
+      if (dataType === DataType.ORGANIZATIONS) {
+        const existingOrganizations = await this.prisma.organization.findMany({
+          where: { churchId: this.churchId },
+          select: { id: true, code: true, name: true, parentId: true }
+        })
+        context.existingOrganizations = existingOrganizations
+      }
+
       return context
     } catch (error) {
       logger.error('Failed to get validation context', error instanceof Error ? error : new Error(String(error)), {
@@ -294,6 +304,43 @@ export class DataValidator {
           rejectionReason: z.string().max(200).optional().nullable()
         })
 
+      case DataType.ORGANIZATIONS:
+        return z.object({
+          code: z.string()
+            .min(1, '조직코드는 필수입니다')
+            .max(20, '조직코드는 20자 이내여야 합니다')
+            .regex(/^[A-Z0-9_]+$/, '조직코드는 영문 대문자, 숫자, 언더스코어만 사용 가능합니다'),
+          
+          name: z.string()
+            .min(1, '조직명은 필수입니다')
+            .max(100, '조직명은 100자 이내여야 합니다'),
+          
+          level: z.enum(['LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4', '1단계', '2단계', '3단계', '4단계']),
+          
+          parentCode: z.string()
+            .max(20, '상위조직코드는 20자 이내여야 합니다')
+            .optional()
+            .nullable(),
+          
+          description: z.string().max(500, '설명은 500자 이내여야 합니다').optional().nullable(),
+          
+          isActive: z.boolean().default(true),
+          
+          phone: z.string()
+            .regex(/^(0[2-9]\d?-?\d{3,4}-?\d{4}|01[0-9]-?\d{4}-?\d{4})$/, '올바른 전화번호를 입력해주세요')
+            .optional()
+            .nullable(),
+          
+          email: z.string()
+            .email('올바른 이메일 형식이 아닙니다')
+            .optional()
+            .nullable(),
+          
+          address: z.string().max(200, '주소는 200자 이내여야 합니다').optional().nullable(),
+          
+          managerName: z.string().max(50, '담당자명은 50자 이내여야 합니다').optional().nullable()
+        })
+
       default:
         return z.object({})
     }
@@ -327,6 +374,9 @@ export class DataValidator {
           break
         case DataType.EXPENSE_REPORTS:
           processedData = await this.validateExpenseReportBusinessRules(data, context, rowIndex, errors)
+          break
+        case DataType.ORGANIZATIONS:
+          processedData = await this.validateOrganizationBusinessRules(data, context, rowIndex, errors)
           break
       }
 
@@ -584,6 +634,93 @@ export class DataValidator {
         message: '거부일은 신청일 이후여야 합니다',
         value: data.rejectedDate
       })
+    }
+
+    return data
+  }
+
+  /**
+   * 조직 비즈니스 룰 검증
+   */
+  private async validateOrganizationBusinessRules(
+    data: OrganizationImportData,
+    context: ValidationContext,
+    rowIndex: number,
+    errors: ImportError[]
+  ): Promise<any> {
+    // 조직코드 중복 검사
+    if (context.existingOrganizations) {
+      const existingOrg = context.existingOrganizations.find(org => 
+        org.code === data.code
+      )
+      if (existingOrg) {
+        errors.push({
+          row: rowIndex,
+          field: 'code',
+          message: `이미 등록된 조직코드입니다: ${existingOrg.name}`,
+          value: data.code
+        })
+      }
+    }
+
+    // 상위조직 존재 검증
+    if (data.parentCode && context.existingOrganizations) {
+      const parentOrg = context.existingOrganizations.find(org => 
+        org.code === data.parentCode
+      )
+      if (!parentOrg) {
+        errors.push({
+          row: rowIndex,
+          field: 'parentCode',
+          message: `존재하지 않는 상위조직코드입니다: ${data.parentCode}`,
+          value: data.parentCode
+        })
+      } else {
+        // 상위조직 ID 설정
+        (data as any).parentId = parentOrg.id
+      }
+    }
+
+    // 조직 레벨 검증
+    let level = data.level
+    if (typeof level === 'string') {
+      // 한국어 레벨을 영문으로 변환
+      switch (level) {
+        case '1단계': level = 'LEVEL_1'; break
+        case '2단계': level = 'LEVEL_2'; break
+        case '3단계': level = 'LEVEL_3'; break
+        case '4단계': level = 'LEVEL_4'; break
+      }
+      (data as any).level = level
+    }
+
+    // 레벨 1인 경우 상위조직이 없어야 함
+    if (level === 'LEVEL_1' && data.parentCode) {
+      errors.push({
+        row: rowIndex,
+        field: 'parentCode',
+        message: '1단계 조직은 상위조직을 가질 수 없습니다',
+        value: data.parentCode
+      })
+    }
+
+    // 레벨 2-4인 경우 상위조직이 있어야 함
+    if ((level === 'LEVEL_2' || level === 'LEVEL_3' || level === 'LEVEL_4') && !data.parentCode) {
+      errors.push({
+        row: rowIndex,
+        field: 'parentCode',
+        message: `${level.replace('LEVEL_', '')}단계 조직은 상위조직이 필요합니다`,
+        value: data.parentCode
+      })
+    }
+
+    // 활성상태 변환
+    if (typeof data.isActive === 'string') {
+      if (data.isActive === '예' || data.isActive === 'true') {
+        (data as any).isActive = true
+      } else if (data.isActive === '아니오' || data.isActive === 'false') {
+        (data as any).isActive = false
+      }
     }
 
     return data

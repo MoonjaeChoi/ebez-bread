@@ -7,7 +7,8 @@ import {
   OfferingExportData,
   AttendanceExportData,
   VisitationExportData,
-  ExpenseReportExportData
+  ExpenseReportExportData,
+  OrganizationExportData
 } from '../types'
 import { logger } from '@/lib/logger'
 
@@ -141,6 +142,28 @@ export class DataFormatter {
       currentStep: report.currentStep,
       totalSteps: report.totalSteps,
       requesterName: report.requester?.name || ''
+    }))
+  }
+
+  /**
+   * 조직 데이터 포맷팅
+   */
+  formatOrganizationsData(organizations: any[]): OrganizationExportData[] {
+    return organizations.map(org => ({
+      id: org.id,
+      code: org.code,
+      name: org.name,
+      level: org.level,
+      description: org.description,
+      isActive: org.isActive,
+      phone: org.phone,
+      email: org.email,
+      address: org.address,
+      managerName: org.managerName,
+      displayOrder: org.displayOrder,
+      createdAt: org.createdAt,
+      updatedAt: org.updatedAt,
+      parentCode: org.parent?.code || ''
     }))
   }
 
@@ -290,6 +313,9 @@ export class DataFormatter {
       case DataType.EXPENSE_REPORTS:
         this.addExpenseStatistics(stats, data)
         break
+      case DataType.ORGANIZATIONS:
+        this.addOrganizationStatistics(stats, data)
+        break
     }
 
     return stats
@@ -387,6 +413,41 @@ export class DataFormatter {
   }
 
   /**
+   * 조직 통계 추가
+   */
+  private addOrganizationStatistics(stats: Record<string, any>, organizations: any[]): void {
+    // 레벨별 분포
+    stats.levelDistribution = this.countByField(organizations, 'level')
+    
+    // 활성 상태 분포
+    stats.activeStatusDistribution = this.countByField(organizations, 'isActive')
+    
+    // 활성 조직 수
+    stats.activeCount = organizations.filter(org => org.isActive).length
+    stats.inactiveCount = organizations.filter(org => !org.isActive).length
+    
+    // 레벨별 계층 구조 통계
+    const level1Count = organizations.filter(org => org.level === 'LEVEL_1').length
+    const level2Count = organizations.filter(org => org.level === 'LEVEL_2').length
+    const level3Count = organizations.filter(org => org.level === 'LEVEL_3').length
+    const level4Count = organizations.filter(org => org.level === 'LEVEL_4').length
+    
+    stats.hierarchyStats = {
+      level1: level1Count,
+      level2: level2Count,
+      level3: level3Count,
+      level4: level4Count,
+      maxDepth: level4Count > 0 ? 4 : (level3Count > 0 ? 3 : (level2Count > 0 ? 2 : 1))
+    }
+    
+    // 담당자가 있는 조직 수
+    stats.withManagerCount = organizations.filter(org => org.managerName).length
+    
+    // 연락처가 있는 조직 수
+    stats.withContactCount = organizations.filter(org => org.phone || org.email).length
+  }
+
+  /**
    * 필드별 카운트
    */
   private countByField(data: any[], field: string): Record<string, number> {
@@ -456,6 +517,8 @@ export class DataFormatter {
         return ['id', 'memberName', 'visitDate']
       case DataType.EXPENSE_REPORTS:
         return ['id', 'title', 'amount', 'status']
+      case DataType.ORGANIZATIONS:
+        return ['id', 'code', 'name', 'level']
       default:
         return ['id']
     }

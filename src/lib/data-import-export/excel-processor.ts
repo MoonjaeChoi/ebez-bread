@@ -15,7 +15,8 @@ import {
   validateOfferingData,
   validateAttendanceData,
   validateVisitationData,
-  validateExpenseReportData
+  validateExpenseReportData,
+  validateOrganizationData
 } from './validators'
 
 // 기본 컬럼 매핑 정의
@@ -93,6 +94,26 @@ const DEFAULT_COLUMN_MAPPINGS: Record<DataType, ColumnMapping> = {
     '거부일': 'rejectedDate',
     '거부사유': 'rejectionReason',
     '영수증URL': 'receiptUrl'
+  },
+  [DataType.ORGANIZATIONS]: {
+    '코드': 'code',
+    '조직코드': 'code',
+    '이름': 'name',
+    '조직명': 'name',
+    '조직단계': 'level',
+    '레벨': 'level',
+    '상위조직코드': 'parentCode',
+    '부모조직': 'parentCode',
+    '설명': 'description',
+    '활성상태': 'isActive',
+    '상태': 'isActive',
+    '전화번호': 'phone',
+    '연락처': 'phone',
+    '이메일': 'email',
+    '이메일주소': 'email',
+    '주소': 'address',
+    '담당자': 'managerName',
+    '담당자명': 'managerName'
   }
 }
 
@@ -243,6 +264,12 @@ export async function processImportData<T>(
             rowNumber
           )
           break
+        case DataType.ORGANIZATIONS:
+          validationResult = validateOrganizationData(
+            row,
+            rowNumber
+          )
+          break
         default:
           throw new Error(`지원되지 않는 데이터 타입: ${dataType}`)
       }
@@ -260,13 +287,15 @@ export async function processImportData<T>(
                 'offering' in validationResult && validationResult.offering || 
                 'attendance' in validationResult && validationResult.attendance || 
                 'visitation' in validationResult && validationResult.visitation || 
-                'expenseReport' in validationResult && validationResult.expenseReport) {
+                'expenseReport' in validationResult && validationResult.expenseReport ||
+                'organization' in validationResult && validationResult.organization) {
         // 타입에 따라 적절한 데이터 추가
         const validData = (('member' in validationResult && validationResult.member) || 
                           ('offering' in validationResult && validationResult.offering) || 
                           ('attendance' in validationResult && validationResult.attendance) || 
                           ('visitation' in validationResult && validationResult.visitation) || 
-                          ('expenseReport' in validationResult && validationResult.expenseReport)) as T
+                          ('expenseReport' in validationResult && validationResult.expenseReport) ||
+                          ('organization' in validationResult && validationResult.organization)) as T
         validatedData.push(validData)
         result.summary.successful++
       }
@@ -433,6 +462,19 @@ function getExportHeaders(dataType: DataType): Record<string, string> {
         rejectedDate: '거부일',
         rejectionReason: '거부사유'
       }
+    case DataType.ORGANIZATIONS:
+      return {
+        code: '코드',
+        name: '이름',
+        level: '조직단계',
+        parentCode: '상위조직코드',
+        description: '설명',
+        isActive: '활성상태',
+        phone: '전화번호',
+        email: '이메일',
+        address: '주소',
+        managerName: '담당자'
+      }
     default:
       return {}
   }
@@ -506,6 +548,7 @@ function getSheetName(dataType: DataType): string {
     case DataType.ATTENDANCES: return '출석현황'
     case DataType.VISITATIONS: return '심방기록'
     case DataType.EXPENSE_REPORTS: return '지출결의서'
+    case DataType.ORGANIZATIONS: return '조직도'
     default: return '데이터'
   }
 }

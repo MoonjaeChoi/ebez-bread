@@ -6,7 +6,8 @@ import {
   FamilyRelation,
   OfferingType,
   ServiceType,
-  ReportStatus 
+  ReportStatus,
+  OrganizationLevel
 } from '@prisma/client'
 import { 
   MemberImportData, 
@@ -14,6 +15,7 @@ import {
   AttendanceImportData, 
   VisitationImportData, 
   ExpenseReportImportData,
+  OrganizationImportData,
   ImportError
 } from './types'
 
@@ -596,4 +598,101 @@ export function validateExpenseReportData(
   }
   
   return { expenseReport, errors }
+}
+
+// 조직 데이터 검증
+export function validateOrganizationData(
+  data: any, 
+  row: number
+): { organization: OrganizationImportData | null; errors: ImportError[] } {
+  const errors: ImportError[] = []
+  
+  // 코드 검증 (필수)
+  if (!data.code || typeof data.code !== 'string' || data.code.trim().length === 0) {
+    errors.push({
+      row,
+      field: 'code',
+      message: '조직코드는 필수 입력 항목입니다',
+      value: data.code
+    })
+  } else if (!/^[A-Z0-9_]+$/.test(data.code.trim())) {
+    errors.push({
+      row,
+      field: 'code',
+      message: '조직코드는 영문 대문자, 숫자, 언더스코어만 사용 가능합니다',
+      value: data.code
+    })
+  }
+  
+  // 이름 검증 (필수)
+  if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
+    errors.push({
+      row,
+      field: 'name',
+      message: '조직명은 필수 입력 항목입니다',
+      value: data.name
+    })
+  }
+  
+  // 조직 레벨 검증 (필수)
+  const levelMapping: Record<string, keyof typeof OrganizationLevel> = {
+    '1단계': 'LEVEL_1',
+    '2단계': 'LEVEL_2',
+    '3단계': 'LEVEL_3',
+    '4단계': 'LEVEL_4'
+  }
+  const level = parseEnum(data.level, OrganizationLevel, levelMapping)
+  if (!level) {
+    errors.push({
+      row,
+      field: 'level',
+      message: '올바른 조직단계가 아닙니다 (LEVEL_1/LEVEL_2/LEVEL_3/LEVEL_4 또는 1단계/2단계/3단계/4단계)',
+      value: data.level
+    })
+  }
+  
+  // 이메일 검증 (선택)
+  if (data.email && typeof data.email === 'string' && data.email.trim().length > 0) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(data.email.trim())) {
+      errors.push({
+        row,
+        field: 'email',
+        message: '올바른 이메일 형식이 아닙니다',
+        value: data.email
+      })
+    }
+  }
+  
+  // 전화번호 검증 (선택)
+  if (data.phone && typeof data.phone === 'string' && data.phone.trim().length > 0) {
+    const phoneRegex = /^(0[2-9]\d?-?\d{3,4}-?\d{4}|01[0-9]-?\d{4}-?\d{4})$/
+    if (!phoneRegex.test(data.phone.trim().replace(/\s/g, ''))) {
+      errors.push({
+        row,
+        field: 'phone',
+        message: '올바른 전화번호 형식이 아닙니다',
+        value: data.phone
+      })
+    }
+  }
+  
+  if (errors.length > 0) {
+    return { organization: null, errors }
+  }
+  
+  const organization: OrganizationImportData = {
+    code: data.code.trim(),
+    name: data.name.trim(),
+    level: level!,
+    parentCode: data.parentCode?.trim() || undefined,
+    description: data.description?.trim() || undefined,
+    isActive: data.isActive !== undefined ? parseBoolean(data.isActive) : true,
+    phone: data.phone?.trim() || undefined,
+    email: data.email?.trim() || undefined,
+    address: data.address?.trim() || undefined,
+    managerName: data.managerName?.trim() || undefined
+  }
+  
+  return { organization, errors }
 }

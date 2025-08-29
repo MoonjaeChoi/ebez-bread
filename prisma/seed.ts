@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { seedRealOrganizations } from './seeds/real-organization-seed'
+import { seedOrganizationRoles } from './seeds/organization-role-seed'
 
 const prisma = new PrismaClient()
 
@@ -1003,6 +1005,14 @@ async function main() {
   console.log(`   - Visitations: ${createdVisitations.length + moreVisitationsCreated.length} (${moreVisitationsCreated.length} new)`)
   console.log(`   - Expense Reports: ${createdExpenseReports.length + moreExpenseReportsCreated.length} (${moreExpenseReportsCreated.length} new)`)
   console.log(`   - Account Codes: ${createdAccountCodes.length} (new)`)
+
+  // 실제 조직구조 시딩 (기존 예시 조직 대신 실제 조직구조 사용)
+  await seedRealOrganizations(church.id)
+
+  // 조직 직책 시딩
+  await seedOrganizationRoles(church.id)
+
+  console.log('🎉 All seeding completed successfully!')
 }
 
 main()
