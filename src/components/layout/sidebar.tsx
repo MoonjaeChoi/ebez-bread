@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   Menu,
   Calculator,
+  PieChart,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -71,6 +72,12 @@ const navigationItems = [
     title: '회계 관리',
     href: '/dashboard/accounting',
     icon: Calculator,
+    permission: 'finances',
+  },
+  {
+    title: '예산 배정',
+    href: '/dashboard/budgets/allocation',
+    icon: PieChart,
     permission: 'finances',
   },
   {

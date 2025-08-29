@@ -467,7 +467,7 @@ export const importExportRouter = router({
   // 데이터 내보내기 (서버에서 데이터만 반환, 클라이언트에서 파일 생성)
   exportData: protectedProcedure
     .input(exportOptionsSchema)
-    .query(async ({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
         const churchId = ctx.session.user.churchId
         const backupManager = new BackupManager(ctx.prisma, churchId)
@@ -622,6 +622,30 @@ function getTemplateData(dataType: DataType): any[] {
         거부일: '',
         거부사유: ''
       }]
+    case DataType.ORGANIZATIONS:
+      return [{
+        조직코드: 'ORG001',
+        조직명: '남선교회',
+        영문명: 'Men\'s Fellowship',
+        조직레벨: 'LEVEL_1',
+        상위조직코드: '',
+        설명: '남선교회 조직',
+        활성상태: '예',
+        연락처: '010-1234-5678',
+        이메일: 'men@church.com',
+        주소: '서울시 강남구',
+        담당자: '홍길동'
+      }]
+    case DataType.ORGANIZATION_MEMBERSHIPS:
+      return [{
+        교인명: '홍길동',
+        조직코드: 'ORG001',
+        직책명: '회장',
+        주소속여부: '예',
+        가입일: '2024-01-01',
+        종료일: '',
+        비고: '임기 2년'
+      }]
     default:
       return []
   }
@@ -635,6 +659,8 @@ function getTemplateName(dataType: DataType): string {
     case DataType.ATTENDANCES: return '출석현황'
     case DataType.VISITATIONS: return '심방기록'
     case DataType.EXPENSE_REPORTS: return '지출결의서'
+    case DataType.ORGANIZATIONS: return '조직도'
+    case DataType.ORGANIZATION_MEMBERSHIPS: return '조직별_직책_구성원'
     default: return '데이터'
   }
 }

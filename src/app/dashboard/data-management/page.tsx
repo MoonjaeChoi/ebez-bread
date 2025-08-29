@@ -17,9 +17,11 @@ import {
   MapPin,
   Receipt,
   Building2,
+  UserCheck,
   AlertTriangle,
   CheckCircle,
-  Info
+  Info,
+  Calculator
 } from 'lucide-react'
 import { ImportDialog } from '@/components/data-management/ImportDialog'
 import { ExportDialog } from '@/components/data-management/ExportDialog'
@@ -119,6 +121,24 @@ export default function DataManagementPage() {
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
       borderColor: 'border-indigo-200'
+    },
+    {
+      type: DataType.ORGANIZATION_MEMBERSHIPS,
+      title: '조직별 직책 구성원',
+      description: '조직별 교인 소속 및 직책 정보',
+      icon: UserCheck,
+      color: 'text-teal-600',
+      bgColor: 'bg-teal-50',
+      borderColor: 'border-teal-200'
+    },
+    {
+      type: DataType.ACCOUNT_CODES,
+      title: '회계 계정코드',
+      description: '교회 회계 시스템의 계정과목 정보',
+      icon: Calculator,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-200'
     }
   ]
 
@@ -290,7 +310,7 @@ export default function DataManagementPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
                 {dataTypeInfo.map((item) => {
                   const Icon = item.icon
                   return (
@@ -502,6 +522,8 @@ export default function DataManagementPage() {
                     <li>• 심방 기록 및 상담</li>
                     <li>• 지출결의서 및 회계</li>
                     <li>• 조직도 및 부서 구조</li>
+                    <li>• 조직별 직책 구성원 정보</li>
+                    <li>• 회계 계정코드 및 과목</li>
                   </ul>
                 </div>
 

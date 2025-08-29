@@ -233,6 +233,8 @@ export function ImportDialog({ children, onImportComplete }: ImportDialogProps) 
       case DataType.ATTENDANCES: return '출석 현황'
       case DataType.VISITATIONS: return '심방 기록'
       case DataType.EXPENSE_REPORTS: return '지출결의서'
+      case DataType.ORGANIZATIONS: return '조직도'
+      case DataType.ORGANIZATION_MEMBERSHIPS: return '조직별 직책 구성원'
       default: return type
     }
   }
@@ -275,6 +277,7 @@ export function ImportDialog({ children, onImportComplete }: ImportDialogProps) 
                     <SelectItem value={DataType.VISITATIONS}>심방 기록</SelectItem>
                     <SelectItem value={DataType.EXPENSE_REPORTS}>지출결의서</SelectItem>
                     <SelectItem value={DataType.ORGANIZATIONS}>조직도</SelectItem>
+                    <SelectItem value={DataType.ORGANIZATION_MEMBERSHIPS}>조직별 직책 구성원</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

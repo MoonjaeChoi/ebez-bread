@@ -55,19 +55,7 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
     recordCount: number
   } | null>(null)
 
-  const exportDataQuery = trpc.importExport.exportData.useQuery({
-    dataType: dataType as DataType,
-    format: fileFormat,
-    dateRange: dateRange.from && dateRange.to ? {
-      start: dateRange.from.toISOString(),
-      end: dateRange.to.toISOString()
-    } : undefined,
-    filters: {},
-    includeInactive: false,
-    filename: `export_${dataType}_${new Date().toISOString().split('T')[0]}`
-  }, {
-    enabled: false, // 수동으로 실행
-  })
+  const exportDataMutation = trpc.importExport.exportData.useMutation()
 
   const reset = () => {
     setStep('configure')
@@ -110,14 +98,14 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
       setProgress(50)
       setProgressMessage('데이터 준비 중...')
 
-      const result = await exportDataQuery.refetch()
+      const result = await exportDataMutation.mutateAsync(options)
 
-      if (result.data && result.data.success && result.data.data) {
+      if (result && result.success && result.data) {
         setProgress(80)
         setProgressMessage('파일 생성 중...')
 
         // Base64를 Blob으로 변환하여 다운로드
-        const binaryString = atob(result.data.data)
+        const binaryString = atob(result.data)
         const bytes = new Uint8Array(binaryString.length)
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i)
@@ -131,7 +119,7 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        link.download = result.data.filename || '데이터.xlsx'
+        link.download = result.filename || '데이터.xlsx'
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -140,8 +128,8 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
         setProgress(100)
         setProgressMessage('내보내기 완료')
         setExportResult({
-          filename: result.data.filename || '데이터.xlsx',
-          recordCount: result.data.recordCount
+          filename: result.filename || '데이터.xlsx',
+          recordCount: result.recordCount
         })
         setStep('complete')
         
@@ -160,6 +148,9 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
       case DataType.ATTENDANCES: return '출석 현황'
       case DataType.VISITATIONS: return '심방 기록'
       case DataType.EXPENSE_REPORTS: return '지출결의서'
+      case DataType.ORGANIZATIONS: return '조직도'
+      case DataType.ORGANIZATION_MEMBERSHIPS: return '조직별 직책 구성원'
+      case DataType.ACCOUNT_CODES: return '회계 계정코드'
       default: return type
     }
   }
@@ -212,6 +203,8 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
                     <SelectItem value={DataType.VISITATIONS}>심방 기록</SelectItem>
                     <SelectItem value={DataType.EXPENSE_REPORTS}>지출결의서</SelectItem>
                     <SelectItem value={DataType.ORGANIZATIONS}>조직도</SelectItem>
+                    <SelectItem value={DataType.ORGANIZATION_MEMBERSHIPS}>조직별 직책 구성원</SelectItem>
+                    <SelectItem value={DataType.ACCOUNT_CODES}>회계 계정코드</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -251,7 +244,7 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
                         mode="single"
                         selected={dateRange.from}
                         onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                        initialFocus
+                        autoFocus
                       />
                     </PopoverContent>
                   </Popover>
@@ -275,7 +268,7 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
                         mode="single"
                         selected={dateRange.to}
                         onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                        initialFocus
+                        autoFocus
                       />
                     </PopoverContent>
                   </Popover>
@@ -311,9 +304,10 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
                 </Button>
                 <Button
                   onClick={handleExport}
-                  disabled={!dataType || exportDataQuery.isLoading}
+                  disabled={!dataType || exportDataMutation.isLoading}
                 >
                   내보내기
+                  {/* Debug: {dataType ? `(${dataType})` : '(선택 안됨)'} */}
                 </Button>
               </div>
             </div>

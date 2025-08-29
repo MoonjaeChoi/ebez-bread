@@ -5,6 +5,7 @@ import {
   Visitation, 
   ExpenseReport,
   Organization,
+  AccountCode,
   Gender,
   MaritalStatus,
   MemberStatus,
@@ -12,7 +13,8 @@ import {
   OfferingType,
   ServiceType,
   ReportStatus,
-  OrganizationLevel
+  OrganizationLevel,
+  AccountType
 } from '@prisma/client'
 
 // 공통 인터페이스
@@ -145,6 +147,54 @@ export interface OrganizationExportData extends Omit<Organization, 'churchId' | 
   parentCode?: string
 }
 
+// 조직별 직책 구성원 데이터 타입
+export interface OrganizationMembershipImportData {
+  memberName: string  // 교인명 (실제 Member ID로 변환됨)
+  organizationCode: string  // 조직 코드 (실제 Organization ID로 변환됨)
+  roleName?: string  // 직책명 (실제 Role ID로 변환됨)
+  isPrimary?: boolean | string  // 주 소속 여부
+  joinDate?: string | Date  // 가입일
+  endDate?: string | Date  // 종료일
+  notes?: string  // 비고
+}
+
+// 회계 계정코드 데이터 타입
+export interface AccountCodeImportData {
+  code: string
+  name: string
+  englishName?: string
+  type: AccountType | string
+  level: number | string
+  parentCode?: string  // 부모 계정 코드 (실제 Parent ID로 변환됨)
+  order?: number | string
+  allowTransaction?: boolean | string
+  isActive?: boolean | string
+  isSystem?: boolean | string
+  description?: string
+}
+
+export interface AccountCodeExportData extends Omit<AccountCode, 'churchId' | 'parentId'> {
+  parentCode?: string
+}
+
+export interface OrganizationMembershipExportData {
+  id: string
+  memberName: string
+  memberPhone?: string
+  memberEmail?: string
+  organizationCode: string
+  organizationName: string
+  organizationLevel: string
+  roleName?: string
+  roleLevel?: number
+  isLeadership?: boolean
+  isPrimary: boolean
+  joinDate: Date | string
+  endDate?: Date | string | null
+  isActive: boolean
+  notes?: string
+}
+
 // 데이터 타입 열거형
 export enum DataType {
   MEMBERS = 'members',
@@ -152,7 +202,9 @@ export enum DataType {
   ATTENDANCES = 'attendances',
   VISITATIONS = 'visitations',
   EXPENSE_REPORTS = 'expense_reports',
-  ORGANIZATIONS = 'organizations'
+  ORGANIZATIONS = 'organizations',
+  ORGANIZATION_MEMBERSHIPS = 'organization_memberships',
+  ACCOUNT_CODES = 'account_codes'
 }
 
 // 파일 포맷 열거형
@@ -195,6 +247,7 @@ export interface BackupOptions {
   includeVisitations?: boolean
   includeExpenseReports?: boolean
   includeOrganizations?: boolean
+  includeAccountCodes?: boolean
   dateRange?: {
     start: Date
     end: Date

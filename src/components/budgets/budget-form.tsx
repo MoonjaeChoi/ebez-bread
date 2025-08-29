@@ -364,7 +364,7 @@ export function BudgetForm({ budgetId, onSuccess, onCancel }: BudgetFormProps) {
                             disabled={(date) =>
                               date > new Date() || date < new Date('1900-01-01')
                             }
-                            initialFocus
+                            autoFocus
                           />
                         </PopoverContent>
                       </Popover>
@@ -407,7 +407,7 @@ export function BudgetForm({ budgetId, onSuccess, onCancel }: BudgetFormProps) {
                               setEndDate(date)
                             }}
                             disabled={(date) => startDate ? date < startDate : false}
-                            initialFocus
+                            autoFocus
                           />
                         </PopoverContent>
                       </Popover>

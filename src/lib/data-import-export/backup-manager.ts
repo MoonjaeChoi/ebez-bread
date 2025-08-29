@@ -182,6 +182,12 @@ export class BackupManager {
         case DataType.EXPENSE_REPORTS:
           data = await this.exportExpenseReportData(options.dateRange, options.filters) as unknown as T[]
           break
+        case DataType.ORGANIZATIONS:
+          data = await this.exportOrganizationData(options.includeInactive) as unknown as T[]
+          break
+        case DataType.ORGANIZATION_MEMBERSHIPS:
+          data = await this.exportOrganizationMembershipData(options.includeInactive) as unknown as T[]
+          break
         default:
           throw new Error(`지원되지 않는 데이터 타입: ${dataType}`)
       }
@@ -402,6 +408,140 @@ export class BackupManager {
     }))
   }
 
+  // 조직 데이터 내보내기
+  private async exportOrganizationData(includeInactive: boolean = false) {
+    const where = {
+      churchId: this.churchId,
+      ...(includeInactive ? {} : { isActive: true })
+    }
+
+    const organizations = await this.prisma.organization.findMany({
+      where,
+      include: {
+        parent: true
+      },
+      orderBy: [
+        { level: 'asc' },
+        { sortOrder: 'asc' },
+        { name: 'asc' }
+      ]
+    })
+
+    return organizations.map(org => ({
+      조직코드: org.code,
+      조직명: org.name,
+      영문명: org.englishName || '',
+      조직레벨: this.formatOrganizationLevel(org.level),
+      상위조직코드: org.parent?.code || '',
+      설명: org.description || '',
+      활성상태: org.isActive ? '예' : '아니오',
+      연락처: org.phone || '',
+      이메일: org.email || '',
+      주소: org.address || '',
+      담당자: org.managerName || '',
+      정렬순서: org.sortOrder,
+      생성일: org.createdAt.toISOString().split('T')[0],
+      수정일: org.updatedAt.toISOString().split('T')[0]
+    }))
+  }
+
+  // 조직별 직책 구성원 데이터 내보내기
+  private async exportOrganizationMembershipData(includeInactive: boolean = false) {
+    const where = {
+      organization: {
+        churchId: this.churchId
+      },
+      ...(includeInactive ? {} : { isActive: true })
+    }
+
+    const memberships = await this.prisma.organizationMembership.findMany({
+      where,
+      include: {
+        member: {
+          select: {
+            name: true,
+            phone: true,
+            email: true
+          }
+        },
+        organization: {
+          select: {
+            code: true,
+            name: true,
+            level: true
+          }
+        },
+        role: {
+          select: {
+            name: true,
+            level: true,
+            isLeadership: true
+          }
+        }
+      },
+      orderBy: [
+        { organization: { name: 'asc' } },
+        { role: { level: 'desc' } },
+        { member: { name: 'asc' } }
+      ]
+    })
+
+    return memberships.map(membership => ({
+      교인명: membership.member.name,
+      교인연락처: membership.member.phone || '',
+      교인이메일: membership.member.email || '',
+      조직코드: membership.organization.code,
+      조직명: membership.organization.name,
+      조직레벨: this.formatOrganizationLevel(membership.organization.level),
+      직책명: membership.role?.name || '',
+      직책레벨: membership.role?.level || 0,
+      리더십여부: membership.role?.isLeadership ? '예' : '아니오',
+      주소속여부: membership.isPrimary ? '예' : '아니오',
+      가입일: membership.joinDate.toISOString().split('T')[0],
+      종료일: membership.endDate ? membership.endDate.toISOString().split('T')[0] : '',
+      활성상태: membership.isActive ? '예' : '아니오',
+      비고: membership.notes || '',
+      생성일: membership.createdAt.toISOString().split('T')[0],
+      수정일: membership.updatedAt.toISOString().split('T')[0]
+    }))
+  }
+
+  // 회계 계정코드 데이터 내보내기
+  private async exportAccountCodeData(includeInactive: boolean = false) {
+    const where = {
+      churchId: this.churchId,
+      ...(includeInactive ? {} : { isActive: true })
+    }
+
+    const accountCodes = await this.prisma.accountCode.findMany({
+      where,
+      include: {
+        parent: true
+      },
+      orderBy: [
+        { level: 'asc' },
+        { order: 'asc' },
+        { code: 'asc' }
+      ]
+    })
+
+    return accountCodes.map(account => ({
+      계정코드: account.code,
+      계정명: account.name,
+      영문명: account.englishName || '',
+      계정분류: this.formatAccountType(account.type),
+      계층레벨: account.level,
+      상위계정코드: account.parent?.code || '',
+      정렬순서: account.order,
+      거래허용: account.allowTransaction ? '예' : '아니오',
+      활성상태: account.isActive ? '예' : '아니오',
+      시스템계정: account.isSystem ? '예' : '아니오',
+      설명: account.description || '',
+      생성일: account.createdAt.toISOString().split('T')[0],
+      수정일: account.updatedAt.toISOString().split('T')[0]
+    }))
+  }
+
   // 백업 정보 시트 생성
   private createBackupInfoSheet(
     includedTables: string[],
@@ -512,6 +652,93 @@ export class BackupManager {
       case 'REJECTED': return '거부'
       case 'PAID': return '지급완료'
       default: return ''
+    }
+  }
+
+  private formatOrganizationLevel(level: any): string {
+    switch (level) {
+      case 'LEVEL_1': return '1단계'
+      case 'LEVEL_2': return '2단계'
+      case 'LEVEL_3': return '3단계'
+      case 'LEVEL_4': return '4단계'
+      default: return ''
+    }
+  }
+
+  private formatAccountType(type: any): string {
+    switch (type) {
+      case 'ASSET': return '자산'
+      case 'LIABILITY': return '부채'
+      case 'EQUITY': return '자본'
+      case 'REVENUE': return '수익'
+      case 'EXPENSE': return '비용'
+      default: return ''
+    }
+  }
+
+  // 특정 데이터 타입 내보내기
+  async exportDataByType(dataType: DataType, options: ExportOptions): Promise<BackupResult> {
+    try {
+      let data: any[] = []
+      let sheetName = ''
+
+      switch (dataType) {
+        case DataType.MEMBERS:
+          data = await this.exportMemberData(options.dateRange)
+          sheetName = '교인정보'
+          break
+        case DataType.OFFERINGS:
+          data = await this.exportOfferingData(options.dateRange)
+          sheetName = '헌금내역'
+          break
+        case DataType.ATTENDANCES:
+          data = await this.exportAttendanceData(options.dateRange)
+          sheetName = '출석현황'
+          break
+        case DataType.VISITATIONS:
+          data = await this.exportVisitationData(options.dateRange)
+          sheetName = '심방기록'
+          break
+        case DataType.EXPENSE_REPORTS:
+          data = await this.exportExpenseReportData(options.dateRange)
+          sheetName = '지출결의서'
+          break
+        case DataType.ORGANIZATIONS:
+          data = await this.exportOrganizationData(options.includeInactive)
+          sheetName = '조직정보'
+          break
+        case DataType.ORGANIZATION_MEMBERSHIPS:
+          data = await this.exportOrganizationMembershipData(options.includeInactive)
+          sheetName = '조직구성원'
+          break
+        case DataType.ACCOUNT_CODES:
+          data = await this.exportAccountCodeData(options.includeInactive)
+          sheetName = '회계계정코드'
+          break
+        default:
+          throw new Error(`지원하지 않는 데이터 타입: ${dataType}`)
+      }
+
+      // Excel 파일로 내보내기
+      const result = await exportToExcel(data, {
+        filename: options.filename || `${sheetName}_${new Date().toISOString().split('T')[0]}.xlsx`,
+        sheetName
+      })
+
+      return {
+        success: true,
+        filename: result.filename,
+        data: result.data,
+        includedTables: [sheetName],
+        recordCounts: { [dataType]: data.length }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '데이터 내보내기 중 오류가 발생했습니다',
+        includedTables: [],
+        recordCounts: {}
+      }
     }
   }
 }

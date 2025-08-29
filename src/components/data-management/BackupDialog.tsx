@@ -313,7 +313,7 @@ export function BackupDialog({ children }: BackupDialogProps) {
                             mode="single"
                             selected={dateRange.from}
                             onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                            initialFocus
+                            autoFocus
                           />
                         </PopoverContent>
                       </Popover>
@@ -337,7 +337,7 @@ export function BackupDialog({ children }: BackupDialogProps) {
                             mode="single"
                             selected={dateRange.to}
                             onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                            initialFocus
+                            autoFocus
                           />
                         </PopoverContent>
                       </Popover>

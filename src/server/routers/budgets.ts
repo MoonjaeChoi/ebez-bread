@@ -124,6 +124,15 @@ export const budgetsRouter = router({
                 email: true,
               },
             },
+            budgetItems: {
+              select: {
+                id: true,
+                name: true,
+                amount: true,
+                category: true,
+                description: true,
+              },
+            },
             _count: {
               select: {
                 budgetItems: true,

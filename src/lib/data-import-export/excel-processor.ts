@@ -114,6 +114,32 @@ const DEFAULT_COLUMN_MAPPINGS: Record<DataType, ColumnMapping> = {
     '주소': 'address',
     '담당자': 'managerName',
     '담당자명': 'managerName'
+  },
+  [DataType.ACCOUNT_CODES]: {
+    '계정코드': 'code',
+    '코드': 'code',
+    '계정명': 'name',
+    '이름': 'name',
+    '영문명': 'englishName',
+    '영문이름': 'englishName',
+    '계정분류': 'type',
+    '분류': 'type',
+    '타입': 'type',
+    '계층레벨': 'level',
+    '레벨': 'level',
+    '단계': 'level',
+    '상위계정코드': 'parentCode',
+    '부모코드': 'parentCode',
+    '정렬순서': 'order',
+    '순서': 'order',
+    '거래허용': 'allowTransaction',
+    '거래가능': 'allowTransaction',
+    '활성상태': 'isActive',
+    '상태': 'isActive',
+    '시스템계정': 'isSystem',
+    '시스템': 'isSystem',
+    '설명': 'description',
+    '비고': 'description'
   }
 }
 
@@ -334,32 +360,46 @@ export async function exportToExcel<T extends Record<string, any>>(
   try {
     progressCallback?.(0, '데이터 준비 중...')
     
-    if (data.length === 0) {
-      throw new Error('내보낼 데이터가 없습니다')
-    }
-    
-    // 컬럼 헤더 생성 (한글로 변환)
+    // 데이터가 없어도 헤더만 있는 파일 생성
     const headers = getExportHeaders(options.dataType)
-    const mappedData = data.map((row, index) => {
-      const mappedRow: Record<string, any> = {}
-      
-      Object.entries(headers).forEach(([key, header]) => {
-        mappedRow[header] = formatExportValue(row[key], key)
+    let mappedData: Record<string, any>[] = []
+    
+    if (data.length > 0) {
+      mappedData = data.map((row, index) => {
+        const mappedRow: Record<string, any> = {}
+        
+        Object.entries(headers).forEach(([key, header]) => {
+          mappedRow[header] = formatExportValue(row[key], key)
+        })
+        
+        // 진행률 업데이트
+        if (index % 100 === 0) {
+          const progress = Math.round((index / data.length) * 50)
+          progressCallback?.(progress, `데이터 변환 중... (${index + 1}/${data.length})`)
+        }
+        
+        return mappedRow
       })
-      
-      // 진행률 업데이트
-      if (index % 100 === 0) {
-        const progress = Math.round((index / data.length) * 50)
-        progressCallback?.(progress, `데이터 변환 중... (${index + 1}/${data.length})`)
-      }
-      
-      return mappedRow
-    })
+    } else {
+      // 데이터가 없으면 헤더만 있는 빈 행 생성
+      const emptyRow: Record<string, any> = {}
+      Object.values(headers).forEach(header => {
+        emptyRow[header] = ''
+      })
+      mappedData = [emptyRow]
+    }
     
     progressCallback?.(50, 'Excel 파일 생성 중...')
     
-    // 워크북 생성
-    const worksheet = XLSX.utils.json_to_sheet(mappedData)
+    // 워크북 생성 - 헤더만 있는 경우를 위해 특별 처리
+    let worksheet: XLSX.WorkSheet
+    if (data.length === 0) {
+      // 데이터가 없으면 헤더만 생성
+      const headerRow = Object.values(headers)
+      worksheet = XLSX.utils.aoa_to_sheet([headerRow])
+    } else {
+      worksheet = XLSX.utils.json_to_sheet(mappedData)
+    }
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, getSheetName(options.dataType))
     
@@ -464,16 +504,55 @@ function getExportHeaders(dataType: DataType): Record<string, string> {
       }
     case DataType.ORGANIZATIONS:
       return {
-        code: '코드',
-        name: '이름',
-        level: '조직단계',
-        parentCode: '상위조직코드',
-        description: '설명',
-        isActive: '활성상태',
-        phone: '전화번호',
-        email: '이메일',
-        address: '주소',
-        managerName: '담당자'
+        조직코드: '조직코드',
+        조직명: '조직명',
+        영문명: '영문명',
+        조직레벨: '조직레벨',
+        상위조직코드: '상위조직코드',
+        설명: '설명',
+        활성상태: '활성상태',
+        연락처: '연락처',
+        이메일: '이메일',
+        주소: '주소',
+        담당자: '담당자',
+        정렬순서: '정렬순서',
+        생성일: '생성일',
+        수정일: '수정일'
+      }
+    case DataType.ORGANIZATION_MEMBERSHIPS:
+      return {
+        교인명: '교인명',
+        교인연락처: '교인연락처',
+        교인이메일: '교인이메일',
+        조직코드: '조직코드',
+        조직명: '조직명',
+        조직레벨: '조직레벨',
+        직책명: '직책명',
+        직책레벨: '직책레벨',
+        리더십여부: '리더십여부',
+        주소속여부: '주소속여부',
+        가입일: '가입일',
+        종료일: '종료일',
+        활성상태: '활성상태',
+        비고: '비고',
+        생성일: '생성일',
+        수정일: '수정일'
+      }
+    case DataType.ACCOUNT_CODES:
+      return {
+        계정코드: '계정코드',
+        계정명: '계정명',
+        영문명: '영문명',
+        계정분류: '계정분류',
+        계층레벨: '계층레벨',
+        상위계정코드: '상위계정코드',
+        정렬순서: '정렬순서',
+        거래허용: '거래허용',
+        활성상태: '활성상태',
+        시스템계정: '시스템계정',
+        설명: '설명',
+        생성일: '생성일',
+        수정일: '수정일'
       }
     default:
       return {}

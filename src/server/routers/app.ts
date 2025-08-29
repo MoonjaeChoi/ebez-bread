@@ -15,6 +15,7 @@ import { transactionsRouter } from './transactions'
 import { organizationsRouter } from './organizations'
 import { organizationMembershipsRouter } from './organization-memberships'
 import { organizationRolesRouter } from './organization-roles'
+import { departmentsRouter } from './departments'
 
 export const appRouter = router({
   members: membersRouter,
@@ -33,6 +34,7 @@ export const appRouter = router({
   organizations: organizationsRouter,
   organizationMemberships: organizationMembershipsRouter,
   organizationRoles: organizationRolesRouter,
+  departments: departmentsRouter,
 })
 
 export type AppRouter = typeof appRouter
