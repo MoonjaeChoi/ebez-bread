@@ -1,4 +1,121 @@
-# Claude Code Configuration
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**Ebenezer Church Management System** - A multi-tenant Next.js application for church administration including member management, financial accounting, attendance tracking, and offerings management.
+
+## Essential Development Commands
+
+### Core Development
+```bash
+npm run dev                    # Start development server (localhost:3000)
+npm run build && npm run type-check && npm run lint  # Full build pipeline
+npm run test                   # Run all tests
+npm run test:watch             # Test watch mode
+```
+
+### Testing Specific Components
+```bash
+npm run test:accounting        # Test accounting modules only
+npm run test:components        # Test React components only
+npm run test:integration       # Integration tests
+npm run e2e:accounting         # E2E tests for accounting
+```
+
+### Database Operations
+```bash
+npm run db:push               # Push schema changes to database
+npm run db:seed               # Seed basic test data
+npm run db:seed:accounting    # Seed accounting-specific data
+npm run db:studio             # Open Prisma Studio
+```
+
+## Architecture & Key Patterns
+
+### Multi-tenant Design
+- All data is scoped by `churchId` - every Prisma query must filter by church
+- Authentication handled via NextAuth.js with role-based permissions (7 tiers: SUPER_ADMIN → GENERAL_USER)
+- Database models in `prisma/schema.prisma` with Church as the root tenant entity
+
+### tRPC API Structure
+- All business logic in `src/server/routers/` - organized by domain (members, offerings, accounting, etc.)
+- Type-safe client-server communication via tRPC
+- Three procedure types: `publicProcedure`, `protectedProcedure`, `adminProcedure`
+- Main router in `src/server/routers/app.ts`
+
+### Key Systems
+- **Accounting**: Full double-entry bookkeeping with account codes, budgets, transactions
+- **Notifications**: BullMQ-based queue system with Redis (`src/lib/notifications/`)
+- **Logging**: Winston structured logging (`src/lib/logger/`)
+- **Data Management**: Import/Export with Excel support (`src/lib/data-management/`)
+
+### Component Organization
+```
+src/components/
+├── accounting/        # Account trees, budget forms
+├── ui/               # Shadcn/ui base components  
+├── layout/           # Dashboard, sidebar, headers
+├── mobile/           # PWA and mobile-specific components
+└── [domain]/         # Feature-specific components
+```
+
+## Development Principles
+
+### Implementation Workflow
+- Business logic: Write tests first (TDD), implement in tRPC routers
+- UI components: Implement first, then add tests
+- Always use Clean Architecture and SOLID principles
+- Multi-tenant: Every database operation must include `churchId` filter
+
+### Code Standards
+- TypeScript strict mode enabled
+- ES modules only (no require())
+- Import organization: external → internal → relative
+- PascalCase for components/classes, camelCase for variables
+- One component per file
+
+### Testing Strategy
+- Vitest for unit/integration tests with happy-dom environment
+- Playwright for E2E tests in `e2e/` directory
+- Test utilities in `src/test-utils/` with factories for test data
+- Prefer integration tests over mocks when possible
+
+### Database Development
+- PostgreSQL in production, SQLite for development
+- Always run `npm run db:push` after schema changes
+- Use `npm run db:seed:accounting` for accounting-related development
+- Multi-tenancy enforced at database level with CASCADE deletes
+
+## Git & Deployment
+
+### Branch Strategy
+- Main branch: `main`
+- Feature branches: `feature/[feature-name]`
+- Hotfixes: `hotfix/[issue-id]`
+
+### Commit Standards
+- Use prefixes: `[feat]`, `[fix]`, `[docs]`, etc.
+- All changes via Pull Requests only
+- Run full test suite before commits: `npm run test && npm run type-check && npm run lint`
+
+### Environment Setup
+- Production/staging requires Supabase PostgreSQL setup via `npm run setup:supabase`
+- Authentication test account: `admin@ebenezer.church` / `password`
+
+## Key Integration Points
+
+### External Services
+- **Supabase**: PostgreSQL database and auth (production)
+- **Redis**: Required for notification queue system
+- **Twilio**: SMS notifications (optional)
+- **Nodemailer**: Email notifications
+
+### PWA Features
+- Service worker configuration in `next.config.js`
+- Push notifications via Web Push API
+- Offline support with caching strategies
 
 ## 1. 구현 작업 원칙
 - 비즈니스 로직 구현 작업은 반드시 테스트를 먼저 작성하고 구현하세요.
@@ -55,10 +172,13 @@ Description은 영문으로 작성하세요.
 - 모든 수정은 Pull Request로만 병합
 - 커밋 메시지는 '[feat], [fix], [docs]' 등 prefix 사용
 - PR마다 변경 요약 필수 (변경 전후 예시 첨부 권장)
+
 ## 브랜치 규칙
 - 메인 브랜치는 main, 개발 브랜치는 feature/ 기능명, hotfix/ 이슈ID 형식
+
 ## 프로젝트 특이사항
 - 외부 라이브러리 추가 시 반드시 CLAUDE.md 하단에 사유 및 버전 기록
+
 ## Claude Code 사용법
 - 항상 /clear 명령어로 대화 이력 초기화 후 작업 시작
 - 복잡한 작업은 Plan 모드에서 설계 → 승인 → 실행
