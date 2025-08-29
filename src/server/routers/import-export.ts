@@ -92,7 +92,7 @@ export const importExportRouter = router({
         const result = await processImportData(
           mappedData,
           dataType,
-          { ...options, validateOnly: true },
+          { ...options, dataType, validateOnly: true },
           {
             existingMembers,
             existingPositions,
@@ -137,7 +137,7 @@ export const importExportRouter = router({
         const validationResult = await processImportData<MemberImportData>(
           mappedData,
           DataType.MEMBERS,
-          options,
+          { ...options, dataType: DataType.MEMBERS },
           { existingPositions, existingDepartments }
         )
 
@@ -161,7 +161,7 @@ export const importExportRouter = router({
 
             // 기존 교인 업데이트 또는 새로 생성
             let member
-            if (options.updateExisting) {
+            if ((options as any).updateExisting ?? false) {
               // 이름과 전화번호로 기존 교인 찾기
               const existingMember = await ctx.prisma.member.findFirst({
                 where: {
@@ -182,16 +182,16 @@ export const importExportRouter = router({
                     email: memberData.email,
                     birthDate: memberData.birthDate,
                     address: memberData.address,
-                    gender: memberData.gender,
-                    maritalStatus: memberData.maritalStatus,
+                    gender: memberData.gender as any,
+                    maritalStatus: memberData.maritalStatus as any,
                     baptismDate: memberData.baptismDate,
                     confirmationDate: memberData.confirmationDate,
                     positionId,
                     departmentId,
                     familyId: memberData.familyId,
-                    relationship: memberData.relationship,
+                    relationship: memberData.relationship as any,
                     notes: memberData.notes,
-                    status: memberData.status
+                    status: memberData.status as any
                   }
                 })
               } else {
@@ -203,16 +203,16 @@ export const importExportRouter = router({
                     email: memberData.email,
                     birthDate: memberData.birthDate,
                     address: memberData.address,
-                    gender: memberData.gender,
-                    maritalStatus: memberData.maritalStatus,
+                    gender: memberData.gender as any,
+                    maritalStatus: memberData.maritalStatus as any,
                     baptismDate: memberData.baptismDate,
                     confirmationDate: memberData.confirmationDate,
                     positionId,
                     departmentId,
                     familyId: memberData.familyId,
-                    relationship: memberData.relationship,
+                    relationship: memberData.relationship as any,
                     notes: memberData.notes,
-                    status: memberData.status
+                    status: memberData.status as any
                   }
                 })
               }
@@ -225,16 +225,16 @@ export const importExportRouter = router({
                   email: memberData.email,
                   birthDate: memberData.birthDate,
                   address: memberData.address,
-                  gender: memberData.gender,
-                  maritalStatus: memberData.maritalStatus,
+                  gender: memberData.gender as any,
+                  maritalStatus: memberData.maritalStatus as any,
                   baptismDate: memberData.baptismDate,
                   confirmationDate: memberData.confirmationDate,
                   positionId,
                   departmentId,
                   familyId: memberData.familyId,
-                  relationship: memberData.relationship,
+                  relationship: memberData.relationship as any,
                   notes: memberData.notes,
-                  status: memberData.status
+                  status: memberData.status as any
                 }
               })
             }
@@ -288,7 +288,7 @@ export const importExportRouter = router({
         const validationResult = await processImportData<OfferingImportData>(
           mappedData,
           DataType.OFFERINGS,
-          options,
+          { ...options, dataType: DataType.OFFERINGS },
           { existingMembers }
         )
 
@@ -316,7 +316,7 @@ export const importExportRouter = router({
                 churchId,
                 memberId: member.id,
                 amount: offeringData.amount,
-                offeringType: offeringData.offeringType,
+                offeringType: offeringData.offeringType as any,
                 description: offeringData.description,
                 offeringDate: offeringData.offeringDate || new Date()
               }
@@ -371,7 +371,7 @@ export const importExportRouter = router({
         const validationResult = await processImportData<AttendanceImportData>(
           mappedData,
           DataType.ATTENDANCES,
-          options,
+          { ...options, dataType: DataType.ATTENDANCES },
           { existingMembers }
         )
 
@@ -405,7 +405,7 @@ export const importExportRouter = router({
               where: {
                 churchId,
                 memberId: member.id,
-                serviceType: attendanceData.serviceType,
+                serviceType: attendanceData.serviceType as any,
                 attendanceDate: {
                   gte: startOfDay,
                   lte: endOfDay
@@ -414,11 +414,11 @@ export const importExportRouter = router({
             })
 
             let attendance
-            if (existingAttendance && options.updateExisting) {
+            if (existingAttendance && (options as any).updateExisting) {
               attendance = await ctx.prisma.attendance.update({
                 where: { id: existingAttendance.id },
                 data: {
-                  isPresent: attendanceData.isPresent !== undefined ? attendanceData.isPresent : true,
+                  isPresent: attendanceData.isPresent !== undefined ? Boolean(attendanceData.isPresent) : true,
                   notes: attendanceData.notes
                 }
               })
@@ -427,9 +427,9 @@ export const importExportRouter = router({
                 data: {
                   churchId,
                   memberId: member.id,
-                  serviceType: attendanceData.serviceType,
+                  serviceType: attendanceData.serviceType as any,
                   attendanceDate: attendanceData.attendanceDate || new Date(),
-                  isPresent: attendanceData.isPresent !== undefined ? attendanceData.isPresent : true,
+                  isPresent: attendanceData.isPresent !== undefined ? Boolean(attendanceData.isPresent) : true,
                   notes: attendanceData.notes
                 }
               })

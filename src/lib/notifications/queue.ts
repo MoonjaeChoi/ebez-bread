@@ -20,8 +20,6 @@ class NotificationQueue {
   private initializeRedis() {
     try {
       this.redis = new Redis(notificationConfig.redis.url, {
-        retryDelayOnFailover: 100,
-        retryDelayOnCluster: 100,
         maxRetriesPerRequest: 3,
         lazyConnect: true,
       })
@@ -214,7 +212,7 @@ class NotificationQueue {
         : {}
 
       // Get or create template
-      let template = defaultTemplates[notification.type]?.[notification.channel]
+      let template = (defaultTemplates as any)[notification.type]?.[notification.channel]
       
       if (!template) {
         // Try to get custom template from database

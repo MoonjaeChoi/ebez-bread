@@ -89,8 +89,11 @@ export class ExcelExporter {
 
       logger.info('Excel export completed', {
         churchId: this.churchId,
-        recordCount: data.length,
-        filename
+        action: 'excel_export',
+        metadata: {
+          recordCount: data.length,
+          filename
+        }
       })
 
       return {
@@ -99,10 +102,9 @@ export class ExcelExporter {
         data: excelBuffer
       }
     } catch (error) {
-      logger.error('Excel export failed', {
-        error,
+      logger.error('Excel export failed', error as Error, {
         churchId: this.churchId,
-        options
+        metadata: { options }
       })
       
       return {
@@ -174,8 +176,11 @@ export class ExcelExporter {
 
       logger.info('Multi-sheet Excel export completed', {
         churchId: this.churchId,
-        sheets: Array.from(dataMap.keys()),
-        filename: finalFilename
+        action: 'multi_sheet_excel_export',
+        metadata: {
+          sheets: Array.from(dataMap.keys()),
+          filename: finalFilename
+        }
       })
 
       return {
@@ -184,9 +189,9 @@ export class ExcelExporter {
         data: excelBuffer
       }
     } catch (error) {
-      logger.error('Multi-sheet Excel export failed', {
-        error,
-        churchId: this.churchId
+      logger.error('Multi-sheet Excel export failed', error as Error, {
+        churchId: this.churchId,
+        action: 'multi_sheet_excel_export'
       })
       
       return {
@@ -392,7 +397,7 @@ export class ExcelExporter {
   /**
    * 워크시트 스타일링
    */
-  private styleWorksheet(worksheet: XLSX.WorkSheet, rowCount: number, colCount: number): void {
+  private styleWorksheet(worksheet: XLSX.WorkSheet, _rowCount: number, _colCount: number): void {
     // 셀 범위 설정
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
     

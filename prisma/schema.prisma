@@ -63,6 +63,7 @@ model User {
   createdTransactions  Transaction[]        @relation("TransactionCreator")
   requestedBudgetChanges BudgetChange[]     @relation("BudgetChangeRequester")
   approvedBudgetChanges  BudgetChange[]     @relation("BudgetChangeApprover")
+  managedDepartments   Department[]         @relation("DepartmentBudgetManager")
 
   @@map("users")
 }
@@ -128,6 +129,7 @@ model Department {
   church          Church       @relation(fields: [churchId], references: [id], onDelete: Cascade)
   parent          Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
   children        Department[] @relation("DepartmentHierarchy")
+  budgetManager   User?        @relation("DepartmentBudgetManager", fields: [budgetManagerId], references: [id])
   members         Member[]
   budgets         Budget[]
 
@@ -570,6 +572,8 @@ model BudgetChange {
   requestedBy String
   approvedBy  String?
   approvedAt  DateTime?
+  fromItemId  String?
+  toItemId    String?
   
   // Relations
   budget      Budget              @relation(fields: [budgetId], references: [id])

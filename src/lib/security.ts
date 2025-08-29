@@ -146,7 +146,7 @@ export class RequestValidator {
       process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
     ].filter(Boolean)
     
-    if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+    if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed as string))) {
       return false
     }
     
@@ -320,7 +320,7 @@ export class DataEncryption {
   static encrypt(data: string): string {
     const key = this.getKey()
     const iv = crypto.randomBytes(this.IV_LENGTH)
-    const cipher = crypto.createCipher(this.ALGORITHM, key)
+    const cipher = crypto.createCipheriv(this.ALGORITHM, key, iv)
     
     let encrypted = cipher.update(data, 'utf8', 'hex')
     encrypted += cipher.final('hex')
@@ -344,7 +344,7 @@ export class DataEncryption {
       const iv = Buffer.from(ivHex, 'hex')
       const tag = Buffer.from(tagHex, 'hex')
       
-      const decipher = crypto.createDecipher(this.ALGORITHM, key)
+      const decipher = crypto.createDecipheriv(this.ALGORITHM, key, iv)
       ;(decipher as any).setAuthTag(tag)
       
       let decrypted = decipher.update(encrypted, 'hex', 'utf8')

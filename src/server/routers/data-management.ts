@@ -91,18 +91,23 @@ export const dataManagementRouter = router({
 
         logger.info('File uploaded successfully', {
           churchId,
-          filename: input.filename,
-          dataType: input.dataType,
-          rowCount: result.data.length,
-          errorCount: result.errors.length
+          action: 'file_upload',
+          metadata: {
+            filename: input.filename,
+            dataType: input.dataType,
+            rowCount: result.data.length,
+            errorCount: result.errors.length
+          }
         })
 
         return result
       } catch (error) {
-        logger.error('File upload failed', {
-          error,
+        logger.error('File upload failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          filename: input.filename
+          action: 'file_upload',
+          metadata: {
+            filename: input.filename
+          }
         })
         
         throw new TRPCError({
@@ -130,18 +135,23 @@ export const dataManagementRouter = router({
 
         logger.info('Data validation completed', {
           churchId,
-          dataType: input.dataType,
-          total: result.summary.total,
-          successful: result.summary.successful,
-          failed: result.summary.failed
+          action: 'data_validation',
+          metadata: {
+            dataType: input.dataType,
+            total: result.summary.total,
+            successful: result.summary.successful,
+            failed: result.summary.failed
+          }
         })
 
         return result
       } catch (error) {
-        logger.error('Data validation failed', {
-          error,
+        logger.error('Data validation failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          dataType: input.dataType
+          action: 'data_validation',
+          metadata: {
+            dataType: input.dataType
+          }
         })
         
         throw new TRPCError({
@@ -169,18 +179,23 @@ export const dataManagementRouter = router({
 
         logger.info('Data import completed', {
           churchId,
-          dataType: input.dataType,
-          total: result.summary.total,
-          successful: result.summary.successful,
-          failed: result.summary.failed
+          action: 'data_import',
+          metadata: {
+            dataType: input.dataType,
+            total: result.summary.total,
+            successful: result.summary.successful,
+            failed: result.summary.failed
+          }
         })
 
         return result
       } catch (error) {
-        logger.error('Data import failed', {
-          error,
+        logger.error('Data import failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          dataType: input.dataType
+          action: 'data_import',
+          metadata: {
+            dataType: input.dataType
+          }
         })
         
         throw new TRPCError({
@@ -212,9 +227,9 @@ export const dataManagementRouter = router({
           hasMore: false
         }
       } catch (error) {
-        logger.error('Failed to get import history', {
-          error,
-          churchId: ctx.session.user.churchId
+        logger.error('Failed to get import history', error as Error, {
+          churchId: ctx.session.user.churchId,
+          action: 'import_history'
         })
         
         throw new TRPCError({
@@ -245,9 +260,12 @@ export const dataManagementRouter = router({
 
         logger.info('Data export completed', {
           churchId,
-          dataType: input.dataType,
-          format: input.format,
-          filename: result.filename
+          action: 'data_export',
+          metadata: {
+            dataType: input.dataType,
+            format: input.format,
+            filename: result.filename
+          }
         })
 
         return {
@@ -256,10 +274,12 @@ export const dataManagementRouter = router({
           data: base64Data
         }
       } catch (error) {
-        logger.error('Data export failed', {
-          error,
+        logger.error('Data export failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          options: input
+          action: 'data_export',
+          metadata: {
+            options: input
+          }
         })
         
         throw new TRPCError({
@@ -290,9 +310,12 @@ export const dataManagementRouter = router({
 
         logger.info('Backup created successfully', {
           churchId,
-          filename: result.filename,
-          includedTables: result.includedTables,
-          recordCounts: result.recordCounts
+          action: 'backup_create',
+          metadata: {
+            filename: result.filename,
+            includedTables: result.includedTables,
+            recordCounts: result.recordCounts
+          }
         })
 
         return {
@@ -303,10 +326,12 @@ export const dataManagementRouter = router({
           recordCounts: result.recordCounts
         }
       } catch (error) {
-        logger.error('Backup creation failed', {
-          error,
+        logger.error('Backup creation failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          options: input
+          action: 'backup_create',
+          metadata: {
+            options: input
+          }
         })
         
         throw new TRPCError({
@@ -338,9 +363,9 @@ export const dataManagementRouter = router({
           hasMore: false
         }
       } catch (error) {
-        logger.error('Failed to get backup history', {
-          error,
-          churchId: ctx.session.user.churchId
+        logger.error('Failed to get backup history', error as Error, {
+          churchId: ctx.session.user.churchId,
+          action: 'backup_history'
         })
         
         throw new TRPCError({
@@ -368,10 +393,12 @@ export const dataManagementRouter = router({
           message: '백업 파일을 찾을 수 없습니다'
         })
       } catch (error) {
-        logger.error('Backup download failed', {
-          error,
+        logger.error('Backup download failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          backupId: input.backupId
+          action: 'backup_download',
+          metadata: {
+            backupId: input.backupId
+          }
         })
         
         throw new TRPCError({
@@ -401,18 +428,23 @@ export const dataManagementRouter = router({
 
         logger.info('Backup restore completed', {
           churchId,
-          filename: input.filename,
-          total: result.summary.total,
-          successful: result.summary.successful,
-          failed: result.summary.failed
+          action: 'backup_restore',
+          metadata: {
+            filename: input.filename,
+            total: result.summary.total,
+            successful: result.summary.successful,
+            failed: result.summary.failed
+          }
         })
 
         return result
       } catch (error) {
-        logger.error('Backup restore failed', {
-          error,
+        logger.error('Backup restore failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          filename: input.filename
+          action: 'backup_restore',
+          metadata: {
+            filename: input.filename
+          }
         })
         
         throw new TRPCError({
@@ -445,8 +477,11 @@ export const dataManagementRouter = router({
 
         logger.info('Template generated', {
           churchId,
-          dataType: input.dataType,
-          filename: result.filename
+          action: 'template_generate',
+          metadata: {
+            dataType: input.dataType,
+            filename: result.filename
+          }
         })
 
         return {
@@ -455,10 +490,12 @@ export const dataManagementRouter = router({
           data: base64Data
         }
       } catch (error) {
-        logger.error('Template generation failed', {
-          error,
+        logger.error('Template generation failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          dataType: input.dataType
+          action: 'template_generate',
+          metadata: {
+            dataType: input.dataType
+          }
         })
         
         throw new TRPCError({
@@ -481,14 +518,17 @@ export const dataManagementRouter = router({
 
         logger.info('Data stats retrieved', {
           churchId,
-          stats
+          action: 'data_stats',
+          metadata: {
+            stats
+          }
         })
 
         return stats
       } catch (error) {
-        logger.error('Failed to get data stats', {
-          error,
-          churchId: ctx.session.user.churchId
+        logger.error('Failed to get data stats', error as Error, {
+          churchId: ctx.session.user.churchId,
+          action: 'data_stats'
         })
         
         throw new TRPCError({
@@ -527,18 +567,23 @@ export const dataManagementRouter = router({
 
         logger.info('Restore preview completed', {
           churchId,
-          filename: input.filename,
-          totalRecords: result.totalRecords,
-          validRecords: result.totalValidRecords,
-          invalidRecords: result.totalInvalidRecords
+          action: 'restore_preview',
+          metadata: {
+            filename: input.filename,
+            totalRecords: result.totalRecords,
+            validRecords: result.totalValidRecords,
+            invalidRecords: result.totalInvalidRecords
+          }
         })
 
         return result
       } catch (error) {
-        logger.error('Restore preview failed', {
-          error,
+        logger.error('Restore preview failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          filename: input.filename
+          action: 'restore_preview',
+          metadata: {
+            filename: input.filename
+          }
         })
         
         throw new TRPCError({
@@ -574,18 +619,23 @@ export const dataManagementRouter = router({
 
         logger.info('Backup file validation completed', {
           churchId,
-          filename: input.filename,
-          isValid: result.isValid,
-          sheetsCount: result.sheets.length,
-          estimatedRecords: result.estimatedRecords
+          action: 'backup_validation',
+          metadata: {
+            filename: input.filename,
+            isValid: result.isValid,
+            sheetsCount: result.sheets.length,
+            estimatedRecords: result.estimatedRecords
+          }
         })
 
         return result
       } catch (error) {
-        logger.error('Backup file validation failed', {
-          error,
+        logger.error('Backup file validation failed', error as Error, {
           churchId: ctx.session.user.churchId,
-          filename: input.filename
+          action: 'backup_validation',
+          metadata: {
+            filename: input.filename
+          }
         })
         
         throw new TRPCError({

@@ -64,9 +64,9 @@ class VisitationReminderScheduler {
 
   getStatus() {
     return this.jobs.map((job, index) => ({
-      running: job.running || false,
-      nextDate: job.nextDate().toJSDate(),
-      lastDate: job.lastDate()?.toJSDate(),
+      running: (job as any).running || false,
+      nextDate: new Date(job.nextDate().toString()),
+      lastDate: job.lastDate() ? new Date(job.lastDate()!.toString()) : null,
       pattern: job.cronTime.source,
       type: ['morning', 'evening', 'hourly'][index],
     }))
@@ -84,14 +84,20 @@ class VisitationReminderScheduler {
             await this.processVisitationsForChurch(church.id, type)
             logger.debug('Visitation reminders processed', {
               churchId: church.id,
-              churchName: church.name,
-              type,
+              action: 'visitation_reminders_processed',
+              metadata: {
+                churchName: church.name,
+                type,
+              }
             })
           } catch (error) {
             logger.error('Failed to process visitation reminders for church', error as Error, {
               churchId: church.id,
-              churchName: church.name,
-              type,
+              action: 'visitation_reminders_failed',
+              metadata: {
+                churchName: church.name,
+                type,
+              }
             })
             throw error
           }
@@ -102,13 +108,19 @@ class VisitationReminderScheduler {
       const succeeded = results.filter(result => result.status === 'fulfilled').length
 
       logger.info('Visitation reminder batch completed', {
-        type,
-        totalChurches: churches.length,
-        succeeded,
-        failed,
+        action: 'visitation_batch_completed',
+        metadata: {
+          type,
+          totalChurches: churches.length,
+          succeeded,
+          failed,
+        }
       })
     } catch (error) {
-      logger.error('Failed to process visitation reminders', error as Error, { type })
+      logger.error('Failed to process visitation reminders', error as Error, {
+        action: 'visitation_batch_failed',
+        metadata: { type }
+      })
       throw error
     }
   }
@@ -148,7 +160,7 @@ class VisitationReminderScheduler {
     const upcomingVisitations = await prisma.visitation.findMany({
       where: {
         member: { churchId },
-        followUpNeeded: true,
+        needsFollowUp: true,
         followUpDate: {
           gte: startTime,
           lte: endTime,
@@ -214,15 +226,21 @@ class VisitationReminderScheduler {
           
           logger.debug('Visitation reminder sent', {
             userId: user.id,
-            visitationId: visitation.id,
-            memberName: visitation.member.name,
-            hoursAhead: preferredReminderHours,
+            action: 'visitation_reminder_sent',
+            metadata: {
+              visitationId: visitation.id,
+              memberName: visitation.member.name,
+              hoursAhead: preferredReminderHours,
+            }
           })
         } catch (error) {
           logger.error('Failed to send visitation reminder', error as Error, {
             userId: user.id,
-            visitationId: visitation.id,
-            memberName: visitation.member.name,
+            action: 'visitation_reminder_failed',
+            metadata: {
+              visitationId: visitation.id,
+              memberName: visitation.member.name,
+            }
           })
         }
       }
@@ -252,7 +270,7 @@ class VisitationReminderScheduler {
     const urgentVisitations = await prisma.visitation.findMany({
       where: {
         member: { churchId },
-        followUpNeeded: true,
+        needsFollowUp: true,
         followUpDate: {
           gte: now,
           lte: twoHoursFromNow,
@@ -314,7 +332,10 @@ class VisitationReminderScheduler {
           } catch (error) {
             logger.error('Failed to send urgent visitation reminder', error as Error, {
               userId: user.id,
-              visitationId: visitation.id,
+              action: 'urgent_visitation_reminder_failed',
+              metadata: {
+                visitationId: visitation.id,
+              }
             })
           }
         }

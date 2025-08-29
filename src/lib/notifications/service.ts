@@ -193,7 +193,7 @@ export class NotificationService {
       const upcomingVisitations = await prisma.visitation.findMany({
         where: {
           member: { churchId },
-          followUpNeeded: true,
+          needsFollowUp: true,
           followUpDate: {
             gte: new Date(),
             lte: dayAfter,
@@ -227,8 +227,18 @@ export class NotificationService {
       })
 
       for (const visitation of upcomingVisitations) {
+        const visitationData: VisitationReminderData = {
+          visitationId: visitation.id,
+          memberId: visitation.member.id,
+          memberName: visitation.member.name,
+          visitDate: visitation.visitDate,
+          purpose: visitation.purpose,
+          address: visitation.member.address || undefined,
+          phone: visitation.member.phone || undefined
+        }
+        
         for (const user of users) {
-          await this.sendVisitationReminderNotification(user, visitation)
+          await this.sendVisitationReminderNotification(user, visitationData)
         }
       }
 

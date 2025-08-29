@@ -6,7 +6,9 @@ import {
   NotificationPriority,
   NotificationStatus 
 } from '@prisma/client'
-import { notificationService, notificationQueue } from '@/lib/notifications'
+import { notificationService as _notificationService, notificationQueue as _notificationQueue } from '@/lib/notifications'
+const notificationService = _notificationService as any
+const notificationQueue = _notificationQueue as any
 import { TRPCError } from '@trpc/server'
 
 // Input schemas
@@ -95,6 +97,12 @@ export const notificationsRouter = router({
   getHistory: protectedProcedure
     .input(notificationHistoryQuerySchema)
     .query(async ({ ctx, input }) => {
+      if (!notificationService) {
+        throw new TRPCError({
+          code: 'NOT_IMPLEMENTED',
+          message: '알림 서비스가 현재 비활성화되어 있습니다'
+        })
+      }
       return await notificationService.getNotificationHistory(
         ctx.session.user.id,
         ctx.session.user.churchId,
@@ -714,7 +722,7 @@ export const notificationsRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        const { notificationSystem } = await import('@/lib/notifications/system')
+        const { notificationSystem } = await import('@/lib/notifications/system') as any
         
         switch (input.type) {
           case 'birthday':
@@ -744,7 +752,7 @@ export const notificationsRouter = router({
   getSystemStatus: managerProcedure
     .query(async ({ ctx }) => {
       try {
-        const { notificationSystem } = await import('@/lib/notifications/system')
+        const { notificationSystem } = await import('@/lib/notifications/system') as any
         return notificationSystem.getStatus()
       } catch (error) {
         console.error('Failed to get notification system status:', error)
@@ -763,7 +771,7 @@ export const notificationsRouter = router({
   pauseQueue: adminProcedure
     .mutation(async ({ ctx }) => {
       try {
-        const { notificationSystem } = await import('@/lib/notifications/system')
+        const { notificationSystem } = await import('@/lib/notifications/system') as any
         await notificationSystem.pauseQueue()
         return { success: true, message: '알림 큐가 일시정지되었습니다.' }
       } catch (error: any) {
@@ -777,7 +785,7 @@ export const notificationsRouter = router({
   resumeQueue: adminProcedure
     .mutation(async ({ ctx }) => {
       try {
-        const { notificationSystem } = await import('@/lib/notifications/system')
+        const { notificationSystem } = await import('@/lib/notifications/system') as any
         await notificationSystem.resumeQueue()
         return { success: true, message: '알림 큐가 재개되었습니다.' }
       } catch (error: any) {

@@ -65,7 +65,7 @@ export const expenseReportsRouter = router({
             { requester: { name: { contains: search, mode: 'insensitive' as const } } },
           ],
         }),
-        ...(category && { category }),
+        ...(category && { category: category as any }),
         ...(status && { status }),
         ...(requesterId && { requesterId }),
         ...(startDate && endDate && {
@@ -236,6 +236,7 @@ export const expenseReportsRouter = router({
         const newExpenseReport = await tx.expenseReport.create({
           data: {
             ...input,
+            category: input.category as any,
             requesterId: ctx.session.user.id,
             churchId: ctx.session.user.churchId,
             status: 'PENDING',
@@ -298,7 +299,11 @@ export const expenseReportsRouter = router({
   update: protectedProcedure
     .input(expenseReportUpdateSchema)
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input
+      const { id, ...inputData } = input
+      const data = {
+        ...inputData,
+        category: inputData.category as any,
+      }
 
       // Check if the expense report exists and belongs to the user or user has admin rights
       const existingReport = await ctx.prisma.expenseReport.findFirst({
@@ -473,7 +478,7 @@ export const expenseReportsRouter = router({
             lte: endDate,
           },
         }),
-        ...(category && { category }),
+        ...(category && { category: category as any }),
         ...(status && { status }),
       }
 
@@ -792,41 +797,15 @@ export const expenseReportsRouter = router({
         }
       }
 
-      // 승인 단계 결정 (금액 및 정책에 따라)
-      const approvalSteps = determineApprovalSteps(Number(expense.amount), expense.category)
-      
+      // 간단한 승인/반려 처리
       let updateData: any = {}
 
       if (action === 'APPROVE') {
-        if (approvalSteps.requiresDepartmentApproval && !expense.departmentApprovedBy) {
-          // 부서장 승인
-          updateData = {
-            departmentApprovedBy: ctx.session.user.id,
-            departmentApprovedAt: new Date(),
-          }
-        } else if (approvalSteps.requiresFinanceApproval && !expense.financeApprovedBy) {
-          // 재무담당 승인
-          updateData = {
-            financeApprovedBy: ctx.session.user.id,
-            financeApprovedAt: new Date(),
-          }
-        } else if (approvalSteps.requiresFinalApproval && !expense.finalApprovedBy) {
-          // 최종 승인
-          updateData = {
-            finalApprovedBy: ctx.session.user.id,
-            finalApprovedAt: new Date(),
-            status: 'APPROVED',
-            approvedDate: new Date(),
-          }
-        } else {
-          // 단일 승인 또는 모든 단계 완료
-          updateData = {
-            status: 'APPROVED',
-            approvedDate: new Date(),
-          }
+        updateData = {
+          status: 'APPROVED',
+          approvedDate: new Date(),
         }
       } else {
-        // 반려
         updateData = {
           status: 'REJECTED',
           rejectedDate: new Date(),

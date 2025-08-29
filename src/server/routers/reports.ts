@@ -445,7 +445,7 @@ export const reportsRouter = router({
       }, {} as Record<number, number>)
 
       // 후속 조치 필요한 심방
-      const followUpNeeded = visitations.filter(v => v.followUpNeeded).length
+      const followUpNeeded = visitations.filter(v => v.needsFollowUp).length
 
       return {
         total: visitations.length,
@@ -492,9 +492,12 @@ export const reportsRouter = router({
 
         logger.info('Growth analytics calculated', {
           churchId,
-          year,
-          compareYear,
-          growthRates
+          action: 'growth_analytics',
+          metadata: {
+            year,
+            compareYear,
+            growthRates
+          }
         })
 
         return {
@@ -505,7 +508,11 @@ export const reportsRouter = router({
           projections
         }
       } catch (error) {
-        logger.error('Growth analytics calculation failed', { error, churchId, year })
+        logger.error('Growth analytics calculation failed', error as Error, { 
+          churchId, 
+          action: 'growth_analytics',
+          metadata: { year } 
+        })
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: '성장률 분석 중 오류가 발생했습니다'
@@ -541,8 +548,11 @@ export const reportsRouter = router({
 
         logger.info('Financial pattern analysis completed', {
           churchId,
-          years,
-          totalMembers: memberContributionAnalysis.length
+          action: 'financial_pattern_analysis',
+          metadata: {
+            years,
+            totalMembers: memberContributionAnalysis.length
+          }
         })
 
         return {
@@ -553,7 +563,11 @@ export const reportsRouter = router({
           concentrationAnalysis
         }
       } catch (error) {
-        logger.error('Financial pattern analysis failed', { error, churchId, years })
+        logger.error('Financial pattern analysis failed', error as Error, {
+          churchId,
+          action: 'financial_pattern_analysis', 
+          metadata: { years }
+        })
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: '헌금 패턴 분석 중 오류가 발생했습니다'
@@ -589,10 +603,13 @@ export const reportsRouter = router({
 
         logger.info('Engagement analytics completed', {
           churchId,
-          period,
-          months,
-          totalEngagementScores: memberEngagementScores.length,
-          inactiveMemberCount: inactiveMembers.length
+          action: 'engagement_analytics',
+          metadata: {
+            period,
+            months,
+            totalEngagementScores: memberEngagementScores.length,
+            inactiveMemberCount: inactiveMembers.length
+          }
         })
 
         return {
@@ -603,7 +620,11 @@ export const reportsRouter = router({
           inactiveMembers
         }
       } catch (error) {
-        logger.error('Engagement analytics failed', { error, churchId, period })
+        logger.error('Engagement analytics failed', error as Error, {
+          churchId,
+          action: 'engagement_analytics',
+          metadata: { period }
+        })
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: '참여도 분석 중 오류가 발생했습니다'
@@ -670,9 +691,12 @@ export const reportsRouter = router({
 
         logger.info('Comparative analytics completed', {
           churchId,
-          periodType,
-          currentPeriod,
-          comparePeriod
+          action: 'comparative_analytics',
+          metadata: {
+            periodType,
+            currentPeriod,
+            comparePeriod
+          }
         })
 
         return {
@@ -683,7 +707,7 @@ export const reportsRouter = router({
           summary: generateComparisonSummary(comparisons)
         }
       } catch (error) {
-        logger.error('Comparative analytics failed', { error, churchId, periodType })
+        logger.error('Comparative analytics failed', error as Error, { churchId })
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: '비교 분석 중 오류가 발생했습니다'
@@ -717,12 +741,7 @@ export const reportsRouter = router({
         // 예측 신뢰도 계산
         const confidence = calculateForecastConfidence(historicalData, trends)
 
-        logger.info('Predictive analytics completed', {
-          churchId,
-          forecastMonths,
-          historicalMonths,
-          confidence: confidence.overall
-        })
+        logger.info('Predictive analytics completed', { churchId })
 
         return {
           historicalData,
@@ -733,7 +752,7 @@ export const reportsRouter = router({
           recommendations: generateRecommendations(trends, scenarios)
         }
       } catch (error) {
-        logger.error('Predictive analytics failed', { error, churchId, forecastMonths })
+        logger.error('Predictive analytics failed', error as Error, { churchId })
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: '예측 분석 중 오류가 발생했습니다'
@@ -767,12 +786,7 @@ export const reportsRouter = router({
         // 건강도 점수 (종합 점수)
         const healthScore = calculateChurchHealthScore(metrics, benchmarks)
 
-        logger.info('Performance metrics calculated', {
-          churchId,
-          year,
-          month,
-          healthScore: healthScore.total
-        })
+        logger.info('Performance metrics calculated', { churchId })
 
         return {
           coreMetrics: metrics,
@@ -783,7 +797,7 @@ export const reportsRouter = router({
           alerts: generatePerformanceAlerts(metrics, benchmarks)
         }
       } catch (error) {
-        logger.error('Performance metrics calculation failed', { error, churchId, year })
+        logger.error('Performance metrics calculation failed', error as Error, { churchId })
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: '성과 지표 계산 중 오류가 발생했습니다'
@@ -992,7 +1006,7 @@ async function getMonthlyOfferingPatterns(churchId: string, currentYear: number,
 
 // 계절별 패턴 계산
 function calculateSeasonalPatterns(monthlyPatterns: any[]) {
-  const seasonData = {
+  const seasonData: { [key: string]: number[] } = {
     spring: [], // 3, 4, 5월
     summer: [], // 6, 7, 8월
     fall: [],   // 9, 10, 11월
@@ -1041,7 +1055,7 @@ function calculateAverage(numbers: number[]): number {
 
 // 헌금 타입별 트렌드 분석
 async function getOfferingTypeTrends(churchId: string, currentYear: number, years: number) {
-  const trends = {}
+  const trends: { [key: string]: any[] } = {}
   
   for (let yearOffset = 0; yearOffset < years; yearOffset++) {
     const year = currentYear - yearOffset
@@ -1154,9 +1168,9 @@ async function getAttendancePatterns(churchId: string, months: number) {
   })
 
   // 요일별 출석 패턴
-  const dayOfWeekPattern = {}
+  const dayOfWeekPattern: { [key: number]: number } = {}
   // 예배별 출석 패턴
-  const serviceTypePattern = {}
+  const serviceTypePattern: { [key: string]: number } = {}
   
   attendanceData.forEach(attendance => {
     const dayOfWeek = attendance.attendanceDate.getDay()

@@ -159,8 +159,10 @@ export const adminRouter = router({
           
           logger.error('Failed to fetch user by ID', error as Error, {
             userId: ctx.session.user.id,
-            targetUserId: input.id,
-            action: 'admin_user_fetch_by_id_error'
+            action: 'admin_user_fetch_by_id_error',
+            metadata: {
+              targetUserId: input.id,
+            }
           })
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
@@ -264,7 +266,7 @@ export const adminRouter = router({
           let updateData = { ...data }
           if (password) {
             // const hashedPassword = await bcrypt.hash(password, 12)
-            updateData = { ...updateData, password } // 개발용 임시
+            updateData = { ...updateData, password } as any // 개발용 임시
           }
 
           const user = await ctx.prisma.user.update({

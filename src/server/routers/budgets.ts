@@ -117,13 +117,6 @@ export const budgetsRouter = router({
                 name: true,
               },
             },
-            creator: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
             approver: {
               select: {
                 id: true,
@@ -179,7 +172,7 @@ export const budgetsRouter = router({
               },
             },
           },
-          creator: {
+          createdBy: {
             select: {
               id: true,
               name: true,
@@ -365,7 +358,7 @@ export const budgetsRouter = router({
           data: {
             ...budgetData,
             churchId: ctx.session.user.churchId,
-            createdBy: ctx.session.user.id,
+            createdById: ctx.session.user.id,
           },
         })
 
@@ -543,7 +536,7 @@ export const budgetsRouter = router({
         where: { id },
         data: {
           status: status === 'APPROVED' ? 'ACTIVE' : 'REJECTED',
-          approvedBy: ctx.session.user.id,
+          approvedById: ctx.session.user.id,
           approvedAt: new Date(),
           ...(reason && { description: reason }),
         },
@@ -554,7 +547,7 @@ export const budgetsRouter = router({
               name: true,
             },
           },
-          creator: {
+          createdBy: {
             select: {
               id: true,
               name: true,

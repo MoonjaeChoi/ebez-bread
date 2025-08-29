@@ -10,7 +10,11 @@ export class MemberEventHandler {
    */
   async handleMemberCreated(memberId: string, churchId: string): Promise<void> {
     try {
-      logger.info('Handling new member created event', { memberId, churchId })
+      logger.info('Handling new member created event', { 
+        churchId,
+        action: 'member_created',
+        metadata: { memberId }
+      })
 
       const member = await prisma.member.findUnique({
         where: { id: memberId },
@@ -23,7 +27,10 @@ export class MemberEventHandler {
       })
 
       if (!member) {
-        logger.warn('Member not found for welcome notification', { memberId })
+        logger.warn('Member not found for welcome notification', {
+          action: 'member_not_found',
+          metadata: { memberId }
+        })
         return
       }
 
@@ -106,18 +113,25 @@ export class MemberEventHandler {
 
       // Send welcome email directly to the new member if they have an email
       if (member.email) {
-        await this.sendWelcomeEmailToMember(member, church?.name || '교회')
+        await this.sendWelcomeEmailToMember(
+          { ...member, email: member.email }, 
+          church?.name || '교회'
+        )
       }
 
       logger.info('New member notifications sent successfully', {
-        memberId,
-        memberName: member.name,
-        notificationsSent: notificationUsers.length,
+        action: 'member_notifications_sent',
+        metadata: {
+          memberId,
+          memberName: member.name,
+          notificationsSent: notificationUsers.length,
+        }
       })
     } catch (error) {
       logger.error('Failed to handle member created event', error as Error, {
-        memberId,
         churchId,
+        action: 'member_created_failed',
+        metadata: { memberId }
       })
     }
   }
@@ -157,14 +171,20 @@ ${churchName} 드림`,
       })
 
       logger.info('Welcome email sent to new member', {
-        memberId: member.id,
-        memberName: member.name,
-        memberEmail: member.email,
+        action: 'welcome_email_sent',
+        metadata: {
+          memberId: member.id,
+          memberName: member.name,
+          memberEmail: member.email,
+        }
       })
     } catch (error) {
       logger.error('Failed to send welcome email to member', error as Error, {
-        memberId: member.id,
-        memberName: member.name,
+        action: 'welcome_email_failed',
+        metadata: {
+          memberId: member.id,
+          memberName: member.name,
+        }
       })
     }
   }
@@ -188,7 +208,11 @@ ${churchName} 드림`,
         return
       }
 
-      logger.info('Handling member updated event', { memberId, churchId, changes })
+      logger.info('Handling member updated event', { 
+        churchId,
+        action: 'member_updated',
+        metadata: { memberId, changes }
+      })
 
       const member = await prisma.member.findUnique({
         where: { id: memberId },
@@ -257,16 +281,19 @@ ${churchName} 드림`,
       }
 
       logger.info('Member update notifications sent', {
-        memberId,
-        memberName: member.name,
-        changes: changeDescription,
-        notificationsSent: notificationUsers.length,
+        action: 'member_update_notifications_sent',
+        metadata: {
+          memberId,
+          memberName: member.name,
+          changes: changeDescription,
+          notificationsSent: notificationUsers.length,
+        }
       })
     } catch (error) {
       logger.error('Failed to handle member updated event', error as Error, {
-        memberId,
         churchId,
-        changes,
+        action: 'member_updated_failed',
+        metadata: { memberId, changes }
       })
     }
   }
@@ -287,10 +314,13 @@ ${churchName} 드림`,
       }
 
       logger.info('Handling member status change event', { 
-        memberId, 
         churchId, 
-        oldStatus, 
-        newStatus 
+        action: 'member_status_changed',
+        metadata: {
+          memberId, 
+          oldStatus, 
+          newStatus 
+        }
       })
 
       const member = await prisma.member.findUnique({
@@ -388,18 +418,24 @@ ${churchName} 드림`,
       }
 
       logger.info('Member status change notifications sent', {
-        memberId,
-        memberName: member.name,
-        oldStatus,
-        newStatus,
-        notificationsSent: notificationUsers.length,
+        action: 'member_status_change_notifications_sent',
+        metadata: {
+          memberId,
+          memberName: member.name,
+          oldStatus,
+          newStatus,
+          notificationsSent: notificationUsers.length,
+        }
       })
     } catch (error) {
       logger.error('Failed to handle member status change event', error as Error, {
-        memberId,
         churchId,
-        oldStatus,
-        newStatus,
+        action: 'member_status_change_failed',
+        metadata: {
+          memberId,
+          oldStatus,
+          newStatus,
+        }
       })
     }
   }

@@ -153,10 +153,10 @@ class NotificationCronJobs {
 
   getStatus(): { pattern: string; running: boolean; lastDate?: Date | null; nextDate?: Date | null }[] {
     return this.jobs.map(job => ({
-      pattern: job.cronTime.source,
-      running: job.running || false,
+      pattern: String(job.cronTime.source || job.cronTime.toString()),
+      running: (job as any).running || false,
       lastDate: job.lastDate(),
-      nextDate: job.nextDate(),
+      nextDate: job.nextDate() ? new Date(job.nextDate().toString()) : null,
     }))
   }
 }

@@ -128,7 +128,7 @@ export const transactionsRouter = router({
   getAll: protectedProcedure
     .input(transactionQuerySchema)
     .query(async ({ ctx, input }) => {
-      const { page, limit, startDate, endDate, accountId, search, referenceType } = input
+      const { page, limit, startDate, endDate, accountId, search, reference } = input
       const skip = (page - 1) * limit
 
       const where: Prisma.TransactionWhereInput = {
@@ -151,7 +151,7 @@ export const transactionsRouter = router({
             mode: 'insensitive',
           },
         }),
-        ...(referenceType && { referenceType }),
+        ...(reference && { reference }),
       }
 
       const [transactions, total] = await Promise.all([

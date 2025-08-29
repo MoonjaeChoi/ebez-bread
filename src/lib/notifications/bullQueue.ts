@@ -2,7 +2,7 @@
 import { Queue, Worker, Job } from 'bullmq'
 import Redis from 'ioredis'
 import { notificationConfig } from './config'
-import { NotificationPayload, QueueProcessResult } from './types'
+import { NotificationPayload, QueueProcessResult, NotificationTemplateData } from './types'
 import { NotificationChannel, NotificationStatus, NotificationPriority } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { emailService } from './channels/email'
@@ -77,32 +77,43 @@ export class BullNotificationQueue {
 
       worker.on('completed', (job) => {
         logger.debug('Notification job completed', {
-          jobId: job.id,
-          priority,
-          type: job.data.type,
-          channel: job.data.channel,
+          action: 'notification_job_completed',
+          metadata: {
+            jobId: job.id,
+            priority,
+            type: job.data.type,
+            channel: job.data.channel,
+          }
         })
       })
 
       worker.on('failed', (job, err) => {
         logger.error('Notification job failed', err, {
-          jobId: job?.id,
-          priority,
-          type: job?.data?.type,
-          channel: job?.data?.channel,
-          error: err.message,
+          action: 'notification_job_failed',
+          metadata: {
+            jobId: job?.id,
+            priority,
+            type: job?.data?.type,
+            channel: job?.data?.channel,
+          }
         })
       })
 
       worker.on('error', (err) => {
-        logger.error('Notification worker error', err, { priority })
+        logger.error('Notification worker error', err, {
+          action: 'notification_worker_error',
+          metadata: { priority }
+        })
       })
 
       this.workers.push(worker)
     })
 
     logger.info('BullMQ notification workers initialized', {
-      workerCount: this.workers.length,
+      action: 'workers_initialized',
+      metadata: {
+        workerCount: this.workers.length,
+      }
     })
   }
 
@@ -183,20 +194,26 @@ export class BullNotificationQueue {
       })
 
       logger.info('Notification enqueued to BullMQ', {
-        notificationId: notification.id,
-        jobId: job.id,
-        priority,
-        type: payload.type,
-        channel: payload.channel,
-        scheduledAt: payload.scheduledAt,
+        action: 'notification_enqueued',
+        metadata: {
+          notificationId: notification.id,
+          jobId: job.id,
+          priority,
+          type: payload.type,
+          channel: payload.channel,
+          scheduledAt: payload.scheduledAt,
+        }
       })
 
       return notification.id
     } catch (error) {
       logger.error('Failed to enqueue notification to BullMQ', error as Error, {
-        type: payload.type,
-        channel: payload.channel,
-        recipientId: payload.recipientId,
+        action: 'notification_enqueue_failed',
+        metadata: {
+          type: payload.type,
+          channel: payload.channel,
+          recipientId: payload.recipientId,
+        }
       })
       throw error
     }
@@ -220,10 +237,13 @@ export class BullNotificationQueue {
   private async processNotification(payload: NotificationPayload, jobId: string): Promise<QueueProcessResult> {
     try {
       logger.debug('Processing notification', {
-        jobId,
-        type: payload.type,
-        channel: payload.channel,
-        recipientId: payload.recipientId,
+        action: 'processing_notification',
+        metadata: {
+          jobId,
+          type: payload.type,
+          channel: payload.channel,
+          recipientId: payload.recipientId,
+        }
       })
 
       // Update status to sending
@@ -232,8 +252,12 @@ export class BullNotificationQueue {
         data: { status: NotificationStatus.SENDING },
       })
 
-      // Get template data
-      const templateData = payload.templateData || {}
+      // Get template data with required defaults
+      const templateData: NotificationTemplateData = {
+        recipientName: (payload.templateData?.recipientName as string) || 'Member',
+        churchName: (payload.templateData?.churchName as string) || 'Church',
+        ...(payload.templateData || {})
+      }
 
       // Get or create template
       let template = defaultTemplates[payload.type]?.[payload.channel]
@@ -294,8 +318,11 @@ export class BullNotificationQueue {
           // For now, these are handled separately
           // Could integrate with push notification services like Firebase
           logger.debug(`${payload.channel} notification processed`, {
-            title: rendered.title,
-            content: rendered.content,
+            action: 'notification_processed',
+            metadata: {
+              title: rendered.title,
+              content: rendered.content,
+            }
           })
           result = { success: true }
           break
@@ -307,9 +334,12 @@ export class BullNotificationQueue {
       if (result.success) {
         await this.markNotificationSent(jobId)
         logger.debug('Notification sent successfully', {
-          jobId,
-          type: payload.type,
-          channel: payload.channel,
+          action: 'notification_sent',
+          metadata: {
+            jobId,
+            type: payload.type,
+            channel: payload.channel,
+          }
         })
       } else {
         throw new Error(result.error || 'Unknown error')
@@ -318,9 +348,12 @@ export class BullNotificationQueue {
       return result
     } catch (error) {
       logger.error('Failed to process notification', error as Error, {
-        jobId,
-        type: payload.type,
-        channel: payload.channel,
+        action: 'notification_process_failed',
+        metadata: {
+          jobId,
+          type: payload.type,
+          channel: payload.channel,
+        }
       })
       
       await this.markNotificationFailed(jobId, error instanceof Error ? error.message : 'Unknown error')
@@ -358,7 +391,10 @@ export class BullNotificationQueue {
         },
       })
     } catch (error) {
-      logger.error('Failed to mark notification as sent', error as Error, { notificationId: id })
+      logger.error('Failed to mark notification as sent', error as Error, {
+        action: 'mark_notification_sent_failed',
+        metadata: { notificationId: id }
+      })
     }
   }
 
@@ -393,7 +429,10 @@ export class BullNotificationQueue {
         },
       })
     } catch (err) {
-      logger.error('Failed to mark notification as failed', err as Error, { notificationId: id })
+      logger.error('Failed to mark notification as failed', err as Error, {
+        action: 'mark_notification_failed_failed',
+        metadata: { notificationId: id }
+      })
     }
   }
 
@@ -433,12 +472,11 @@ export class BullNotificationQueue {
 
       // Get worker statistics
       for (const worker of this.workers) {
-        const processed = await worker.getJobCounts()
         workerStats.push({
           name: worker.name,
           running: !worker.closing,
-          processed: processed.completed || 0,
-          failed: processed.failed || 0,
+          processed: 0, // Worker stats not easily accessible in BullMQ
+          failed: 0,
         })
       }
 
@@ -450,7 +488,9 @@ export class BullNotificationQueue {
         workers: workerStats,
       }
     } catch (error) {
-      logger.error('Failed to get BullMQ queue stats', error as Error)
+      logger.error('Failed to get BullMQ queue stats', error as Error, {
+        action: 'get_queue_stats_failed'
+      })
       return { 
         pending: 0, 
         sending: 0, 

@@ -42,9 +42,9 @@ class BirthdayNotificationScheduler {
 
   getStatus() {
     return {
-      running: this.job?.running || false,
-      nextDate: this.job?.nextDate().toJSDate(),
-      lastDate: this.job?.lastDate()?.toJSDate(),
+      running: (this.job as any)?.running || false,
+      nextDate: this.job?.nextDate() ? new Date(this.job!.nextDate().toString()) : null,
+      lastDate: this.job?.lastDate() ? new Date(this.job.lastDate()!.toString()) : null,
       pattern: '0 9 * * *',
       description: 'Daily birthday reminders at 9 AM',
     }
@@ -62,12 +62,18 @@ class BirthdayNotificationScheduler {
             await this.processBirthdaysForChurch(church.id)
             logger.info('Birthday notifications processed', {
               churchId: church.id,
-              churchName: church.name,
+              action: 'birthday_notifications_processed',
+              metadata: {
+                churchName: church.name,
+              }
             })
           } catch (error) {
             logger.error('Failed to process birthday notifications for church', error as Error, {
               churchId: church.id,
-              churchName: church.name,
+              action: 'birthday_notifications_failed',
+              metadata: {
+                churchName: church.name,
+              }
             })
             throw error
           }
@@ -78,9 +84,12 @@ class BirthdayNotificationScheduler {
       const succeeded = results.filter(result => result.status === 'fulfilled').length
 
       logger.info('Birthday notification batch completed', {
-        totalChurches: churches.length,
-        succeeded,
-        failed,
+        action: 'birthday_notification_batch_completed',
+        metadata: {
+          totalChurches: churches.length,
+          succeeded,
+          failed,
+        }
       })
     } catch (error) {
       logger.error('Failed to process birthday notifications', error as Error)
@@ -130,16 +139,22 @@ class BirthdayNotificationScheduler {
             await notificationService.sendBirthdayNotification(user, birthday, days)
             logger.debug('Birthday notification sent', {
               userId: user.id,
-              memberId: birthday.memberId,
-              memberName: birthday.memberName,
-              daysAhead: days,
+              action: 'birthday_notification_sent',
+              metadata: {
+                memberId: birthday.memberId,
+                memberName: birthday.memberName,
+                daysAhead: days,
+              }
             })
           } catch (error) {
             logger.error('Failed to send birthday notification', error as Error, {
               userId: user.id,
-              memberId: birthday.memberId,
-              memberName: birthday.memberName,
-              daysAhead: days,
+              action: 'birthday_notification_failed',
+              metadata: {
+                memberId: birthday.memberId,
+                memberName: birthday.memberName,
+                daysAhead: days,
+              }
             })
           }
         }

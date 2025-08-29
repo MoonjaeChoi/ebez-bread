@@ -38,8 +38,8 @@ export const loggingMiddleware = t.middleware(async ({ ctx, next, path, type, in
       hasInput: !!input,
       inputSize: input ? JSON.stringify(input).length : 0,
       userRole,
-      requireAuth: meta?.requireAuth,
-      allowedRoles: meta?.roles
+      requireAuth: (meta as any)?.requireAuth,
+      allowedRoles: (meta as any)?.roles
     }
   })
   
@@ -109,7 +109,7 @@ export const loggingMiddleware = t.middleware(async ({ ctx, next, path, type, in
         metadata: {
           duration,
           errorCode: error.code,
-          errorMessage: error.message,
+          errorMessage: (error as Error).message,
           success: false
         }
       })
@@ -151,7 +151,7 @@ export const loggingMiddleware = t.middleware(async ({ ctx, next, path, type, in
           type,
           duration,
           errorCode: isExpectedError ? error.code : 'INTERNAL_ERROR',
-          errorMessage: error.message,
+          errorMessage: (error as Error).message,
           requestId
         }
       })
@@ -258,9 +258,9 @@ export const performanceMiddleware = t.middleware(async ({ ctx, next, path, type
 export const securityLoggingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
   const userId = ctx.session?.user?.id
   const churchId = ctx.session?.user?.churchId
-  const ipAddress = ctx.req.headers['x-forwarded-for'] as string || 
-                   ctx.req.headers['x-real-ip'] as string ||
-                   ctx.req.socket?.remoteAddress || 'unknown'
+  const ipAddress = (ctx.req?.headers as any)?.['x-forwarded-for'] || 
+                   (ctx.req?.headers as any)?.['x-real-ip'] ||
+                   (ctx.req as any)?.socket?.remoteAddress || 'unknown'
   
   // Log authentication-related operations
   const authOperations = [
@@ -279,7 +279,7 @@ export const securityLoggingMiddleware = t.middleware(async ({ ctx, next, path, 
         userId,
         churchId,
         ipAddress,
-        userAgent: ctx.req.headers['user-agent']
+        userAgent: (ctx.req?.headers as any)?.['user-agent']
       }
     )
   }
@@ -299,7 +299,7 @@ export const securityLoggingMiddleware = t.middleware(async ({ ctx, next, path, 
       action: `sensitive_${path}`,
       metadata: {
         ipAddress,
-        userAgent: ctx.req.headers['user-agent'],
+        userAgent: (ctx.req?.headers as any)?.['user-agent'],
         type
       }
     })

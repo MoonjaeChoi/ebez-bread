@@ -100,7 +100,7 @@ export function defineAbilityFor(user: User) {
 
     case 'DEPARTMENT_ACCOUNTANT':
       // 부서 회계 권한
-      can('read', 'Member', { departmentId: user.departmentId }, ['name', 'phone'])
+      can('read', 'Member', { departmentId: user.departmentId })
       can(['read', 'create', 'update'], 'Offering', { departmentId: user.departmentId })
       can(['read', 'create'], 'ExpenseReport', { departmentId: user.departmentId })
       can('read', 'AccountCode')

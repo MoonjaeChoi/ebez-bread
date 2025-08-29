@@ -40,8 +40,8 @@ const authMiddleware = t.middleware(({ ctx, next }) => {
       action: 'auth_failed',
       metadata: {
         hasSession: !!ctx.session,
-        userAgent: ctx.req?.headers?.get?.('user-agent') || ctx.req?.headers?.['user-agent'] || 'unknown',
-        ipAddress: ctx.req?.headers?.get?.('x-forwarded-for') || ctx.req?.headers?.get?.('x-real-ip') || ctx.req?.headers?.['x-forwarded-for'] || ctx.req?.headers?.['x-real-ip'] || 'unknown'
+        userAgent: (ctx.req?.headers as any)?.['user-agent'] || 'unknown',
+        ipAddress: (ctx.req?.headers as any)?.['x-forwarded-for'] || (ctx.req?.headers as any)?.['x-real-ip'] || 'unknown'
       }
     })
     throw new TRPCError({ code: 'UNAUTHORIZED' })
@@ -103,6 +103,7 @@ export const managerProcedure = protectedProcedure.use(({ ctx, next }) => {
     UserRole.FINANCIAL_MANAGER,
     UserRole.MINISTER,
     UserRole.COMMITTEE_CHAIR,
+    'DEPARTMENT_HEAD' as UserRole,
   ]
   
   if (!allowedRoles.includes(userRole)) {

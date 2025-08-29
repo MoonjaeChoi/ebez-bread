@@ -60,7 +60,7 @@ describe('Accounting System Integration Tests', () => {
           code: account.code,
           name: account.name,
           type: account.type,
-          parentId: account.parentId,
+          parentId: account.parentId || undefined,
           allowTransaction: account.allowTransaction,
           isActive: account.isActive
         })
@@ -108,9 +108,9 @@ describe('Accounting System Integration Tests', () => {
       prismaMock.budget.create.mockResolvedValue(createdBudget as any)
 
       const budget = await caller.budgets.create(budgetData)
-      expect(budget.name).toBe('2024년 운영예산')
-      expect(budget.budgetItems).toHaveLength(3)
-      expect(Number(budget.totalAmount)).toBe(10000000)
+      expect(budget!.name).toBe('2024년 운영예산')
+      expect(budget!.budgetItems).toHaveLength(3)
+      expect(Number(budget!.totalAmount)).toBe(10000000)
 
       // Step 3: Submit and approve budget
       prismaMock.budget.findUnique
@@ -127,15 +127,16 @@ describe('Accounting System Integration Tests', () => {
         } as any)
 
       // Submit budget
-      await caller.budgets.submit({ id: budget.id })
+      await caller.budgets.submit({ id: budget!.id })
       
       // Approve budget
       const approvedBudget = await caller.budgets.approve({ 
-        id: budget.id,
+        id: budget!.id,
+        status: 'APPROVED' as const,
         reason: '승인합니다'
       })
       
-      expect(approvedBudget.status).toBe(BudgetStatus.APPROVED)
+      expect(approvedBudget!.status).toBe(BudgetStatus.APPROVED)
 
       // Step 4: Check budget balance before expense
       const budgetItem = createdBudget.budgetItems![0]

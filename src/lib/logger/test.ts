@@ -11,10 +11,10 @@ console.log('🚀 Testing Winston Logging System...\n')
 
 // Test basic logging levels
 console.log('1. Testing basic logging levels:')
-logger.debug('This is a debug message', { test: true, level: 'debug' })
-logger.info('This is an info message', { test: true, level: 'info' })
-logger.warn('This is a warning message', { test: true, level: 'warn' })
-logger.error('This is an error message', new Error('Test error'), { test: true, level: 'error' })
+logger.debug('This is a debug message', { action: 'test', metadata: { test: true, level: 'debug' } })
+logger.info('This is an info message', { action: 'test', metadata: { test: true, level: 'info' } })
+logger.warn('This is a warning message', { action: 'test', metadata: { test: true, level: 'warn' } })
+logger.error('This is an error message', new Error('Test error'), { action: 'test', metadata: { test: true, level: 'error' } })
 
 console.log('\n2. Testing contextual logging:')
 // Test contextual logging

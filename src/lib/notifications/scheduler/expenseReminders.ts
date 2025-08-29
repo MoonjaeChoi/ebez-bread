@@ -65,9 +65,9 @@ class ExpenseReminderScheduler {
 
   getStatus() {
     return this.jobs.map((job, index) => ({
-      running: job.running || false,
-      nextDate: job.nextDate().toJSDate(),
-      lastDate: job.lastDate()?.toJSDate(),
+      running: (job as any).running || false,
+      nextDate: new Date(job.nextDate().toString()),
+      lastDate: job.lastDate() ? new Date(job.lastDate()!.toString()) : null,
       pattern: job.cronTime.source,
       type: ['quick', 'daily', 'weekly'][index],
     }))
@@ -151,16 +151,22 @@ class ExpenseReminderScheduler {
             })
             
             logger.debug('Quick expense approval reminder sent', {
-              expenseId: expense.id,
-              approverId: approver.id,
-              amount: Number(expense.amount),
-              isHighPriority,
-              isUrgent,
+              action: 'expense_reminder_sent',
+              metadata: {
+                expenseId: expense.id,
+                approverId: approver.id,
+                amount: Number(expense.amount),
+                isHighPriority,
+                isUrgent,
+              }
             })
           } catch (error) {
             logger.error('Failed to send quick expense approval reminder', error as Error, {
-              expenseId: expense.id,
-              approverId: approver.id,
+              action: 'expense_reminder_failed',
+              metadata: {
+                expenseId: expense.id,
+                approverId: approver.id,
+              }
             })
           }
         }
@@ -258,15 +264,21 @@ class ExpenseReminderScheduler {
         })
 
         logger.debug('Daily expense summary sent', {
-          approverId: approver.id,
-          pendingCount: pendingExpenses.length,
-          totalAmount,
-          oldestDays: daysOldest,
+          action: 'expense_summary_sent',
+          metadata: {
+            approverId: approver.id,
+            pendingCount: pendingExpenses.length,
+            totalAmount,
+            oldestDays: daysOldest,
+          }
         })
       } catch (error) {
         logger.error('Failed to send daily expense summary', error as Error, {
-          approverId: approver.id,
           churchId,
+          action: 'expense_summary_failed',
+          metadata: {
+            approverId: approver.id,
+          }
         })
       }
     }
@@ -360,13 +372,19 @@ class ExpenseReminderScheduler {
         })
 
         logger.debug('Overdue expense reminder sent', {
-          approverId: approver.id,
-          overdueCount: overdueExpenses.length,
+          action: 'overdue_expense_reminder_sent',
+          metadata: {
+            approverId: approver.id,
+            overdueCount: overdueExpenses.length,
+          }
         })
       } catch (error) {
         logger.error('Failed to send overdue expense reminder', error as Error, {
-          approverId: approver.id,
           churchId,
+          action: 'overdue_expense_reminder_failed',
+          metadata: {
+            approverId: approver.id,
+          }
         })
       }
     }
