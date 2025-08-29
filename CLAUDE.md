@@ -30,8 +30,8 @@
 - 간단한 다이어그램은 mermaid를 사용하고, 복잡한 아키텍처 다이어그램은 별도의 svg 파일을 생성해서 문서에 포함시킬것
 
 ## 6. Git 커밋
-- Personal Access Token:
-- github address:
+- Personal Access Token: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
+- github address:https://github.com/MoonjaeChoi/ebez-alpaca
 - 원격 저장소에 푸시할 때, 먼저 HTTP 버퍼 크기를 늘리고 조금씩 나누어 푸시할 것. 에러 시 작은 변경사항만 포함하는 새 커밋을 만들어 푸시할 것.
 - `--no-verify`를 절대 사용하지 마세요
 - 명확하고 일관된 커밋 메시지를 작성하세요.

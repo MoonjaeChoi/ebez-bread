@@ -1,0 +1,641 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Church {
+  id                    String                 @id @default(cuid())
+  name                  String
+  address               String?
+  phone                 String?
+  email                 String?
+  website               String?
+  logoUrl               String?
+  pastorName            String?
+  description           String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  
+  // Existing relations
+  attendances           Attendance[]
+  departments           Department[]
+  expenses              ExpenseReport[]
+  members               Member[]
+  notificationHistories NotificationHistory[]
+  notificationQueues    NotificationQueue[]
+  notificationTemplates NotificationTemplate[]
+  offerings             Offering[]
+  positions             Position[]
+  users                 User[]
+  visitations           Visitation[]
+  
+  // New accounting relations
+  accountCodes          AccountCode[]
+  budgets               Budget[]
+  transactions          Transaction[]
+
+  @@map("churches")
+}
+
+model User {
+  id                   String               @id @default(cuid())
+  email                String               @unique
+  name                 String
+  phone                String?
+  role                 UserRole             @default(GENERAL_USER)
+  isActive             Boolean              @default(true)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  churchId             String
+  password             String?
+  expenseReports       ExpenseReport[]      @relation("ExpenseRequester")
+  notificationSettings NotificationSetting?
+  pushSubscription     PushSubscription?
+  church               Church               @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  
+  // Accounting relations
+  createdBudgets       Budget[]             @relation("BudgetCreator")
+  approvedBudgets      Budget[]             @relation("BudgetApprover")
+  createdTransactions  Transaction[]        @relation("TransactionCreator")
+  requestedBudgetChanges BudgetChange[]     @relation("BudgetChangeRequester")
+  approvedBudgetChanges  BudgetChange[]     @relation("BudgetChangeApprover")
+
+  @@map("users")
+}
+
+model Member {
+  id               String          @id @default(cuid())
+  name             String
+  phone            String?
+  email            String?
+  birthDate        DateTime?
+  address          String?
+  photoUrl         String?
+  gender           Gender?
+  maritalStatus    MaritalStatus?
+  baptismDate      DateTime?
+  confirmationDate DateTime?
+  registrationDate DateTime        @default(now())
+  status           MemberStatus    @default(ACTIVE)
+  familyId         String?
+  relationship     FamilyRelation?
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  churchId         String
+  positionId       String?
+  departmentId     String?
+  attendances      Attendance[]
+  church           Church          @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  department       Department?     @relation(fields: [departmentId], references: [id])
+  position         Position?       @relation(fields: [positionId], references: [id])
+  offerings        Offering[]
+  visitations      Visitation[]
+
+  @@map("members")
+}
+
+model Position {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  churchId    String
+  members     Member[]
+  church      Church   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@map("positions")
+}
+
+model Department {
+  id              String       @id @default(cuid())
+  name            String
+  description     String?
+  leaderId        String?
+  parentId        String?
+  budgetManagerId String?
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  churchId        String
+  church          Church       @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  parent          Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children        Department[] @relation("DepartmentHierarchy")
+  members         Member[]
+  budgets         Budget[]
+
+  @@map("departments")
+}
+
+model Offering {
+  id           String       @id @default(cuid())
+  amount       Decimal
+  offeringType OfferingType
+  description  String?
+  offeringDate DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  churchId     String
+  memberId     String
+  church       Church       @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("offerings")
+}
+
+model Attendance {
+  id             String      @id @default(cuid())
+  serviceType    ServiceType
+  attendanceDate DateTime    @default(now())
+  isPresent      Boolean     @default(true)
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  churchId       String
+  memberId       String
+  church         Church      @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  member         Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("attendances")
+}
+
+model Visitation {
+  id            String            @id @default(cuid())
+  visitDate     DateTime
+  purpose       VisitationPurpose
+  description   String?
+  content       String?
+  needsFollowUp Boolean           @default(false)
+  followUpDate  DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  churchId      String
+  memberId      String
+  church        Church            @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  member        Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("visitations")
+}
+
+model ExpenseReport {
+  id              String          @id @default(cuid())
+  title           String
+  description     String?
+  amount          Decimal
+  category        ExpenseCategory
+  status          ReportStatus    @default(PENDING)
+  requestDate     DateTime        @default(now())
+  approvedDate    DateTime?
+  rejectedDate    DateTime?
+  rejectionReason String?
+  receiptUrl      String?
+  budgetItemId    String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  churchId        String
+  requesterId     String
+  church          Church          @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  requester       User            @relation("ExpenseRequester", fields: [requesterId], references: [id])
+  budgetItem      BudgetItem?     @relation("BudgetItemExpenses", fields: [budgetItemId], references: [id])
+
+  @@map("expense_reports")
+}
+
+model AccountCode {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  name            String
+  englishName     String?
+  type            AccountType
+  level           Int
+  parentId        String?
+  order           Int           @default(0)
+  allowTransaction Boolean      @default(false)
+  isActive        Boolean       @default(true)
+  isSystem        Boolean       @default(false)
+  description     String?
+  churchId        String?       
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  church          Church?       @relation(fields: [churchId], references: [id])
+  parent          AccountCode?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children        AccountCode[] @relation("AccountHierarchy")
+  debitTransactions Transaction[] @relation("DebitAccount")
+  creditTransactions Transaction[] @relation("CreditAccount")
+
+  @@map("account_codes")
+}
+
+model NotificationSetting {
+  id                           String   @id @default(cuid())
+  userId                       String   @unique
+  emailEnabled                 Boolean  @default(true)
+  smsEnabled                   Boolean  @default(false)
+  pushEnabled                  Boolean  @default(true)
+  inAppEnabled                 Boolean  @default(true)
+  birthdayNotifications        Boolean  @default(true)
+  visitationReminders          Boolean  @default(true)
+  expenseApprovalNotifications Boolean  @default(true)
+  systemNotifications          Boolean  @default(true)
+  birthdayReminderDays         Int      @default(7)
+  visitationReminderHours      Int      @default(24)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+  user                         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
+model NotificationQueue {
+  id            String                @id @default(cuid())
+  type          NotificationType
+  channel       NotificationChannel
+  priority      NotificationPriority  @default(NORMAL)
+  recipientId   String
+  recipientType RecipientType         @default(USER)
+  email         String?
+  phone         String?
+  title         String
+  message       String
+  templateData  String?
+  status        NotificationStatus    @default(PENDING)
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  failedAt      DateTime?
+  errorMessage  String?
+  retryCount    Int                   @default(0)
+  maxRetries    Int                   @default(3)
+  relatedId     String?
+  relatedType   String?
+  churchId      String
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  history       NotificationHistory[]
+  church        Church                @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([churchId, status])
+  @@map("notification_queue")
+}
+
+model NotificationHistory {
+  id            String              @id @default(cuid())
+  queueId       String?
+  type          NotificationType
+  channel       NotificationChannel
+  recipientId   String
+  recipientType RecipientType       @default(USER)
+  email         String?
+  phone         String?
+  title         String
+  message       String
+  status        NotificationStatus
+  sentAt        DateTime?
+  errorMessage  String?
+  relatedId     String?
+  relatedType   String?
+  churchId      String
+  createdAt     DateTime            @default(now())
+  church        Church              @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  queue         NotificationQueue?  @relation(fields: [queueId], references: [id])
+
+  @@index([churchId, recipientId])
+  @@index([churchId, type])
+  @@index([createdAt])
+  @@map("notification_history")
+}
+
+model NotificationTemplate {
+  id        String              @id @default(cuid())
+  name      String
+  type      NotificationType
+  channel   NotificationChannel
+  subject   String?
+  title     String
+  content   String
+  isActive  Boolean             @default(true)
+  isDefault Boolean             @default(false)
+  churchId  String
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  church    Church              @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@unique([churchId, type, channel, name])
+  @@map("notification_templates")
+}
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  subscription String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  FINANCIAL_MANAGER
+  MINISTER
+  COMMITTEE_CHAIR
+  DEPARTMENT_HEAD
+  DEPARTMENT_ACCOUNTANT
+  BUDGET_MANAGER
+  DEPARTMENT_BUDGET
+  GENERAL_USER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  TRANSFERRED
+  DECEASED
+}
+
+enum FamilyRelation {
+  HEAD
+  SPOUSE
+  CHILD
+  PARENT
+  SIBLING
+  OTHER
+}
+
+enum OfferingType {
+  TITHE
+  THANKSGIVING
+  SUNDAY_OFFERING
+  SPECIAL
+  MISSION
+  BUILDING
+  OTHER
+}
+
+enum ServiceType {
+  SUNDAY_MORNING
+  SUNDAY_EVENING
+  WEDNESDAY
+  DAWN
+  FRIDAY
+  SATURDAY
+  SPECIAL
+}
+
+enum VisitationPurpose {
+  GENERAL
+  NEW_FAMILY
+  HOSPITAL
+  BIRTHDAY
+  CONDOLENCE
+  COUNSELING
+  EVANGELISM
+  EVENT
+  OTHER
+}
+
+enum ExpenseCategory {
+  OFFICE
+  FACILITY
+  EDUCATION
+  MISSION
+  WELFARE
+  EVENT
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum AccountType {
+  ASSET      // 자산
+  LIABILITY  // 부채
+  EQUITY     // 자본
+  REVENUE    // 수익
+  EXPENSE    // 비용
+}
+
+enum NotificationType {
+  BIRTHDAY_REMINDER
+  VISITATION_REMINDER
+  EXPENSE_APPROVAL_REQUEST
+  EXPENSE_APPROVED
+  EXPENSE_REJECTED
+  SYSTEM_ANNOUNCEMENT
+  WELCOME_NEW_MEMBER
+  PAYMENT_REMINDER
+  CUSTOM
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum NotificationStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum RecipientType {
+  USER
+  MEMBER
+  GROUP
+}
+
+// ===== 회계 시스템 모델 =====
+
+model Budget {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  year         Int
+  quarter      Int?          // 1-4 분기 (선택)
+  month        Int?          // 1-12 월 (선택)
+  totalAmount  Decimal       @db.Decimal(15,2)
+  status       BudgetStatus  @default(DRAFT)
+  startDate    DateTime
+  endDate      DateTime
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  // Foreign Keys
+  churchId     String
+  departmentId String
+  createdById  String
+  approvedById String?
+  approvedAt   DateTime?
+  
+  // Relations
+  church       Church        @relation(fields: [churchId], references: [id])
+  department   Department    @relation(fields: [departmentId], references: [id])
+  createdBy    User          @relation("BudgetCreator", fields: [createdById], references: [id])
+  approver     User?         @relation("BudgetApprover", fields: [approvedById], references: [id])
+  budgetItems  BudgetItem[]
+  budgetChanges BudgetChange[]
+  
+  @@map("budgets")
+}
+
+model BudgetItem {
+  id              String           @id @default(cuid())
+  name            String
+  description     String?
+  amount          Decimal          @db.Decimal(15,2)
+  category        BudgetCategory
+  code            String?          // 예산 항목 코드
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  // Foreign Keys
+  budgetId        String
+  
+  // Relations
+  budget          Budget           @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  budgetExecution BudgetExecution?
+  expenseReports  ExpenseReport[]  @relation("BudgetItemExpenses")
+  
+  @@map("budget_items")
+}
+
+model BudgetExecution {
+  id              String    @id @default(cuid())
+  totalBudget     Decimal   @db.Decimal(15,2)
+  usedAmount      Decimal   @db.Decimal(15,2) @default(0)
+  pendingAmount   Decimal   @db.Decimal(15,2) @default(0)
+  remainingAmount Decimal   @db.Decimal(15,2)
+  executionRate   Float     @default(0)
+  lastUpdated     DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Foreign Keys
+  budgetItemId    String    @unique
+  
+  // Relations
+  budgetItem      BudgetItem @relation(fields: [budgetItemId], references: [id], onDelete: Cascade)
+  
+  @@map("budget_executions")
+}
+
+model BudgetChange {
+  id          String              @id @default(cuid())
+  changeType  BudgetChangeType
+  amount      Decimal             @db.Decimal(15,2)
+  reason      String
+  status      BudgetChangeStatus  @default(PENDING)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  
+  // Foreign Keys
+  budgetId    String
+  requestedBy String
+  approvedBy  String?
+  approvedAt  DateTime?
+  
+  // Relations
+  budget      Budget              @relation(fields: [budgetId], references: [id])
+  requester   User                @relation("BudgetChangeRequester", fields: [requestedBy], references: [id])
+  approver    User?               @relation("BudgetChangeApprover", fields: [approvedBy], references: [id])
+  
+  @@map("budget_changes")
+}
+
+model Transaction {
+  id              String      @id @default(cuid())
+  description     String
+  amount          Decimal     @db.Decimal(15,2)
+  transactionDate DateTime
+  reference       String?     // 참조번호
+  voucherNumber   String?     // 전표번호
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  // Foreign Keys
+  debitAccountId  String
+  creditAccountId String
+  churchId        String
+  createdById     String
+  
+  // Relations
+  debitAccount    AccountCode @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  creditAccount   AccountCode @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  church          Church      @relation(fields: [churchId], references: [id])
+  createdBy       User        @relation("TransactionCreator", fields: [createdById], references: [id])
+  
+  @@map("transactions")
+}
+
+// ===== 새로운 열거형 =====
+
+enum BudgetStatus {
+  DRAFT      // 초안
+  SUBMITTED  // 제출됨
+  APPROVED   // 승인됨
+  REJECTED   // 반려됨
+  ACTIVE     // 활성
+  CLOSED     // 마감
+}
+
+enum BudgetCategory {
+  PERSONNEL   // 인건비
+  OPERATIONS  // 운영비
+  MANAGEMENT  // 관리비
+  FACILITIES  // 시설비
+  EDUCATION   // 교육비
+  MINISTRY    // 사역비
+  MISSION     // 선교비
+  WELFARE     // 복지비
+  EVENT       // 행사비
+  OTHER       // 기타
+}
+
+enum BudgetChangeType {
+  INCREASE    // 증액
+  DECREASE    // 감액
+  TRANSFER    // 이체
+}
+
+enum BudgetChangeStatus {
+  PENDING     // 대기중
+  APPROVED    // 승인됨
+  REJECTED    // 반려됨
+}

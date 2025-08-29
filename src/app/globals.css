@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base Colors - Church Themed */
+    --background: 0 0% 100%;
+    --foreground: 215 25% 27%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 27%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 27%;
+    
+    /* Primary - Church Blue */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 98%;
+    
+    /* Secondary - Warm Accent */
+    --secondary: 47 96% 53%;
+    --secondary-foreground: 215 25% 27%;
+    
+    /* Muted Colors */
+    --muted: 215 16% 97%;
+    --muted-foreground: 215 16% 47%;
+    
+    /* Accent - Soft Church Colors */
+    --accent: 215 16% 97%;
+    --accent-foreground: 215 25% 27%;
+    
+    /* Status Colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 98%;
+    
+    /* UI Elements */
+    --border: 215 16% 92%;
+    --input: 215 16% 92%;
+    --ring: 217 91% 60%;
+    
+    /* Charts - Church Color Palette */
+    --chart-1: 217 91% 60%; /* Primary Blue */
+    --chart-2: 47 96% 53%;  /* Secondary Yellow */
+    --chart-3: 142 71% 45%; /* Success Green */
+    --chart-4: 271 81% 56%; /* Purple Accent */
+    --chart-5: 346 84% 61%; /* Rose Accent */
+    
+    /* Design System */
+    --radius: 0.5rem;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    /* Base Colors - Dark Church Theme */
+    --background: 215 28% 7%;
+    --foreground: 215 16% 97%;
+    --card: 215 28% 9%;
+    --card-foreground: 215 16% 97%;
+    --popover: 215 28% 9%;
+    --popover-foreground: 215 16% 97%;
+    
+    /* Primary - Brighter Church Blue for dark mode */
+    --primary: 217 91% 65%;
+    --primary-foreground: 215 28% 7%;
+    
+    /* Secondary - Warm accent for dark */
+    --secondary: 47 84% 58%;
+    --secondary-foreground: 215 28% 7%;
+    
+    /* Muted Colors - Dark */
+    --muted: 215 25% 15%;
+    --muted-foreground: 215 16% 65%;
+    
+    /* Accent - Dark church colors */
+    --accent: 215 25% 15%;
+    --accent-foreground: 215 16% 97%;
+    
+    /* Status Colors - Dark Mode */
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 215 16% 97%;
+    --success: 142 71% 50%;
+    --success-foreground: 215 28% 7%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 215 28% 7%;
+    
+    /* UI Elements - Dark */
+    --border: 215 25% 18%;
+    --input: 215 25% 18%;
+    --ring: 217 91% 65%;
+    
+    /* Charts - Dark Mode Church Palette */
+    --chart-1: 217 91% 65%; /* Primary Blue */
+    --chart-2: 47 84% 58%;  /* Secondary Yellow */
+    --chart-3: 142 71% 50%; /* Success Green */
+    --chart-4: 271 81% 65%; /* Purple Accent */
+    --chart-5: 346 84% 70%; /* Rose Accent */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Korean font optimization */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
+html {
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system,
+    BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI',
+    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Focus styles for better accessibility */
+.focus-visible:focus-visible {
+  @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+}
+
+/* Prevent initial flash and render optimization */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* React Hydration 최적화 - 깜빡임 완전 제거 */
+html {
+  /* 초기 렌더링 최적화 */
+  opacity: 0;
+  transition: opacity 0.2s ease-in;
+}
+
+html.loaded {
+  opacity: 1;
+}
+
+/* Next.js App Router 최적화 */
+body {
+  min-height: 100vh;
+  -webkit-overflow-scrolling: touch;
+  /* React 18 Hydration 최적화 */
+  contain: layout style paint;
+}
+
+/* PWA 컴포넌트 렌더링 최적화 */
+[data-pwa-component] {
+  contain: layout;
+  will-change: transform, opacity;
+}
+
+/* Custom scrollbar styles */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}

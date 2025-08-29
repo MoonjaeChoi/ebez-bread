@@ -1,0 +1,191 @@
+import { 
+  Member, 
+  Offering, 
+  Attendance, 
+  Visitation, 
+  ExpenseReport,
+  Gender,
+  MaritalStatus,
+  MemberStatus,
+  FamilyRelation,
+  OfferingType,
+  ServiceType,
+  ReportStatus
+} from '@prisma/client'
+
+// 공통 인터페이스
+export interface ImportResult<T = any> {
+  success: boolean
+  data?: T[]
+  errors: ImportError[]
+  summary: {
+    total: number
+    successful: number
+    failed: number
+  }
+}
+
+export interface ExportResult {
+  success: boolean
+  filename?: string
+  data?: ArrayBuffer
+  error?: string
+}
+
+export interface ImportError {
+  row: number
+  field?: string
+  message: string
+  value?: any
+}
+
+export interface ProgressCallback {
+  (progress: number, message: string): void
+}
+
+// 교인 데이터 타입
+export interface MemberImportData {
+  name: string
+  phone?: string
+  email?: string
+  birthDate?: string | Date
+  address?: string
+  gender?: Gender | string
+  maritalStatus?: MaritalStatus | string
+  baptismDate?: string | Date
+  confirmationDate?: string | Date
+  positionName?: string  // 직분명 (실제 Position ID로 변환됨)
+  departmentName?: string  // 부서명 (실제 Department ID로 변환됨)
+  familyId?: string
+  relationship?: FamilyRelation | string
+  notes?: string
+  status?: MemberStatus | string
+}
+
+export interface MemberExportData extends Omit<Member, 'churchId' | 'positionId' | 'departmentId'> {
+  positionName?: string
+  departmentName?: string
+}
+
+// 헌금 데이터 타입
+export interface OfferingImportData {
+  memberName: string  // 교인명 (실제 Member ID로 변환됨)
+  amount: number | string
+  offeringType: OfferingType | string
+  description?: string
+  offeringDate?: string | Date
+}
+
+export interface OfferingExportData extends Omit<Offering, 'churchId' | 'memberId'> {
+  memberName: string
+}
+
+// 출석 데이터 타입
+export interface AttendanceImportData {
+  memberName: string  // 교인명 (실제 Member ID로 변환됨)
+  serviceType: ServiceType | string
+  attendanceDate?: string | Date
+  isPresent?: boolean | string
+  notes?: string
+}
+
+export interface AttendanceExportData extends Omit<Attendance, 'churchId' | 'memberId'> {
+  memberName: string
+}
+
+// 심방 데이터 타입
+export interface VisitationImportData {
+  memberName: string  // 교인명 (실제 Member ID로 변환됨)
+  visitDate: string | Date
+  purpose?: string
+  content?: string
+  followUpNeeded?: boolean | string
+  followUpDate?: string | Date
+}
+
+export interface VisitationExportData extends Omit<Visitation, 'memberId'> {
+  memberName: string
+}
+
+// 지출결의서 데이터 타입
+export interface ExpenseReportImportData {
+  title: string
+  description?: string
+  amount: number | string
+  category: string
+  status?: ReportStatus | string
+  requestDate?: string | Date
+  approvedDate?: string | Date
+  rejectedDate?: string | Date
+  rejectionReason?: string
+  receiptUrl?: string
+}
+
+export interface ExpenseReportExportData extends Omit<ExpenseReport, 'churchId' | 'requesterId'> {
+  requesterName: string
+}
+
+// 데이터 타입 열거형
+export enum DataType {
+  MEMBERS = 'members',
+  OFFERINGS = 'offerings',
+  ATTENDANCES = 'attendances',
+  VISITATIONS = 'visitations',
+  EXPENSE_REPORTS = 'expense_reports'
+}
+
+// 파일 포맷 열거형
+export enum FileFormat {
+  EXCEL = 'excel',
+  CSV = 'csv'
+}
+
+// 내보내기 옵션
+export interface ExportOptions {
+  dataType: DataType
+  format: FileFormat
+  dateRange?: {
+    start: Date
+    end: Date
+  }
+  filters?: Record<string, any>
+  includeInactive?: boolean
+  filename?: string
+}
+
+// 가져오기 옵션
+export interface ImportOptions {
+  dataType: DataType
+  skipErrors?: boolean  // 오류가 있는 행을 건너뛸지 여부
+  updateExisting?: boolean  // 기존 데이터 업데이트 여부 (이름이나 이메일 기준)
+  validateOnly?: boolean  // 유효성 검증만 수행
+}
+
+// 데이터 매핑 정보
+export interface ColumnMapping {
+  [excelColumn: string]: string  // Excel 컬럼명 -> 데이터 필드명
+}
+
+// 백업 생성 옵션
+export interface BackupOptions {
+  includeMembers?: boolean
+  includeOfferings?: boolean
+  includeAttendances?: boolean
+  includeVisitations?: boolean
+  includeExpenseReports?: boolean
+  dateRange?: {
+    start: Date
+    end: Date
+  }
+  filename?: string
+}
+
+// 백업 결과
+export interface BackupResult {
+  success: boolean
+  filename?: string
+  data?: ArrayBuffer
+  includedTables: string[]
+  recordCounts: Record<string, number>
+  error?: string
+}
