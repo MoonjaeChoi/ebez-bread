@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { trpc } from '@/lib/trpc/client'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -58,6 +59,7 @@ export function ExpenseReportForm({
 }: ExpenseReportFormProps) {
   const [isUploading, setIsUploading] = useState(false)
   const isEditing = !!reportId
+  const { data: session } = useSession()
 
   const { data: categories } = trpc.expenseReports.getCategories.useQuery()
   const { data: approvalCandidates } = trpc.expenseReports.getApprovalCandidates.useQuery()
@@ -106,7 +108,7 @@ export function ExpenseReportForm({
       category: '',
       receiptUrl: '',
       approvers: {
-        step1: '',
+        step1: session?.user?.id || '',
         step2: '',
         step3: '',
       },
@@ -131,9 +133,14 @@ export function ExpenseReportForm({
         amount: 0,
         category: '',
         receiptUrl: '',
+        approvers: {
+          step1: session?.user?.id || '',
+          step2: '',
+          step3: '',
+        },
       })
     }
-  }, [editData, reset, isOpen])
+  }, [editData, reset, isOpen, session?.user?.id])
 
   const handleClose = () => {
     reset()
@@ -213,6 +220,87 @@ export function ExpenseReportForm({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
+            {/* 결재담당자 선택 */}
+            {!isEditing && (
+              <div className="space-y-4">
+                <Label>결재담당자 지정</Label>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* 1단계: 부서회계 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="step1">1단계: 부서회계</Label>
+                    <Select
+                      value={watch('approvers')?.step1 || session?.user?.id || 'auto'}
+                      onValueChange={(value) => setValue('approvers.step1', value === 'auto' ? undefined : value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="담당자 선택 (선택사항)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
+                        {approvalCandidates?.step1?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.name}</span>
+                              <span className="text-xs text-gray-500">{user.email}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 2단계: 부장 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="step2">2단계: 부장</Label>
+                    <Select
+                      value={watch('approvers')?.step2 || 'auto'}
+                      onValueChange={(value) => setValue('approvers.step2', value === 'auto' ? undefined : value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="담당자 선택 (선택사항)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
+                        {approvalCandidates?.step2?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.name}</span>
+                              <span className="text-xs text-gray-500">{user.email}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 3단계: 위원장 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="step3">3단계: 위원장</Label>
+                    <Select
+                      value={watch('approvers')?.step3 || 'auto'}
+                      onValueChange={(value) => setValue('approvers.step3', value === 'auto' ? undefined : value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="담당자 선택 (선택사항)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
+                        {approvalCandidates?.step3?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.name}</span>
+                              <span className="text-xs text-gray-500">{user.email}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 제목 */}
             <div className="space-y-2">
               <Label htmlFor="title">
@@ -283,88 +371,6 @@ export function ExpenseReportForm({
                 {...register('description')}
               />
             </div>
-
-            {/* 결재담당자 선택 */}
-            {!isEditing && (
-              <div className="space-y-4">
-                <Label className="text-lg font-medium">결재담당자 지정</Label>
-                <p className="text-sm text-gray-600">각 단계별로 결재담당자를 지정할 수 있습니다. 지정하지 않으면 해당 역할의 모든 사용자에게 승인 요청이 발송됩니다.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* 1단계: 부서회계 */}
-                  <div className="space-y-2">
-                    <Label htmlFor="step1">1단계: 부서회계</Label>
-                    <Select
-                      value={watch('approvers')?.step1 || 'auto'}
-                      onValueChange={(value) => setValue('approvers.step1', value === 'auto' ? undefined : value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="담당자 선택 (선택사항)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
-                        {approvalCandidates?.step1?.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            <div className="flex flex-col">
-                              <span>{user.name}</span>
-                              <span className="text-xs text-gray-500">{user.email}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* 2단계: 부장 */}
-                  <div className="space-y-2">
-                    <Label htmlFor="step2">2단계: 부장</Label>
-                    <Select
-                      value={watch('approvers')?.step2 || 'auto'}
-                      onValueChange={(value) => setValue('approvers.step2', value === 'auto' ? undefined : value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="담당자 선택 (선택사항)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
-                        {approvalCandidates?.step2?.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            <div className="flex flex-col">
-                              <span>{user.name}</span>
-                              <span className="text-xs text-gray-500">{user.email}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* 3단계: 위원장 */}
-                  <div className="space-y-2">
-                    <Label htmlFor="step3">3단계: 위원장</Label>
-                    <Select
-                      value={watch('approvers')?.step3 || 'auto'}
-                      onValueChange={(value) => setValue('approvers.step3', value === 'auto' ? undefined : value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="담당자 선택 (선택사항)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
-                        {approvalCandidates?.step3?.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            <div className="flex flex-col">
-                              <span>{user.name}</span>
-                              <span className="text-xs text-gray-500">{user.email}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* 영수증 업로드 */}
             <div className="space-y-2">

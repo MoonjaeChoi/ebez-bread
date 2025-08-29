@@ -262,9 +262,10 @@ export const expenseReportsRouter = router({
       }
 
       const expenseReport = await ctx.prisma.$transaction(async (tx) => {
+        const { approvers, ...createData } = input
         const newExpenseReport = await tx.expenseReport.create({
           data: {
-            ...input,
+            ...createData,
             category: input.category as any,
             requesterId: ctx.session.user.id,
             churchId: ctx.session.user.churchId,
@@ -301,7 +302,7 @@ export const expenseReportsRouter = router({
         })
 
         // 3단계 승인 워크플로우 단계 생성
-        await createApprovalSteps(newExpenseReport.id, tx, input.approvers)
+        await createApprovalSteps(newExpenseReport.id, tx, approvers)
 
         return newExpenseReport
       })
@@ -1315,9 +1316,9 @@ async function updateBudgetExecution(budgetItemId: string, tx: any) {
 // 3단계 승인 워크플로우 단계 생성
 async function createApprovalSteps(expenseReportId: string, tx: any, approvers?: { step1?: string; step2?: string; step3?: string }) {
   const steps = [
-    { stepOrder: 1, role: 'DEPARTMENT_ACCOUNTANT', assignedUserId: approvers?.step1 }, // 부서회계
-    { stepOrder: 2, role: 'DEPARTMENT_HEAD', assignedUserId: approvers?.step2 },       // 부장
-    { stepOrder: 3, role: 'COMMITTEE_CHAIR', assignedUserId: approvers?.step3 },       // 위원장
+    { stepOrder: 1, role: 'DEPARTMENT_ACCOUNTANT', assignedUserId: approvers?.step1 || null }, // 부서회계
+    { stepOrder: 2, role: 'DEPARTMENT_HEAD', assignedUserId: approvers?.step2 || null },       // 부장
+    { stepOrder: 3, role: 'COMMITTEE_CHAIR', assignedUserId: approvers?.step3 || null },       // 위원장
   ]
 
   for (const step of steps) {
