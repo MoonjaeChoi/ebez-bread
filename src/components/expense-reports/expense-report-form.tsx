@@ -295,14 +295,14 @@ export function ExpenseReportForm({
                   <div className="space-y-2">
                     <Label htmlFor="step1">1단계: 부서회계</Label>
                     <Select
-                      value={watch('approvers')?.step1 || ''}
-                      onValueChange={(value) => setValue('approvers.step1', value || undefined)}
+                      value={watch('approvers')?.step1 || 'auto'}
+                      onValueChange={(value) => setValue('approvers.step1', value === 'auto' ? undefined : value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="담당자 선택 (선택사항)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">역할별 자동 배정</SelectItem>
+                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
                         {approvalCandidates?.step1?.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             <div className="flex flex-col">
@@ -319,14 +319,14 @@ export function ExpenseReportForm({
                   <div className="space-y-2">
                     <Label htmlFor="step2">2단계: 부장</Label>
                     <Select
-                      value={watch('approvers')?.step2 || ''}
-                      onValueChange={(value) => setValue('approvers.step2', value || undefined)}
+                      value={watch('approvers')?.step2 || 'auto'}
+                      onValueChange={(value) => setValue('approvers.step2', value === 'auto' ? undefined : value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="담당자 선택 (선택사항)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">역할별 자동 배정</SelectItem>
+                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
                         {approvalCandidates?.step2?.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             <div className="flex flex-col">
@@ -343,14 +343,14 @@ export function ExpenseReportForm({
                   <div className="space-y-2">
                     <Label htmlFor="step3">3단계: 위원장</Label>
                     <Select
-                      value={watch('approvers')?.step3 || ''}
-                      onValueChange={(value) => setValue('approvers.step3', value || undefined)}
+                      value={watch('approvers')?.step3 || 'auto'}
+                      onValueChange={(value) => setValue('approvers.step3', value === 'auto' ? undefined : value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="담당자 선택 (선택사항)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">역할별 자동 배정</SelectItem>
+                        <SelectItem value="auto">역할별 자동 배정</SelectItem>
                         {approvalCandidates?.step3?.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             <div className="flex flex-col">
