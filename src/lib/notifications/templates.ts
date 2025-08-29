@@ -264,6 +264,109 @@ export const defaultTemplates: Record<
     },
   },
 
+  [NotificationType.EXPENSE_WORKFLOW_STEP_APPROVAL]: {
+    [NotificationChannel.EMAIL]: {
+      subject: '지출결의서 승인 요청',
+      title: '지출결의서 승인 요청',
+      content: `안녕하세요, {{recipientName}}님!
+
+{{requesterName}}님이 제출한 지출결의서의 승인을 요청드립니다.
+
+• 제목: {{expenseTitle}}
+• 금액: {{amount}}
+• 승인 단계: {{stepName}}
+
+지출결의서를 검토하신 후 승인 처리를 진행해 주시기 바랍니다.
+
+{{churchName}} 드림`,
+      variables: ['recipientName', 'requesterName', 'expenseTitle', 'amount', 'stepName', 'churchName'],
+    },
+    [NotificationChannel.SMS]: {
+      title: '지출결의서 승인 요청',
+      content: '{{requesterName}}님이 {{amount}} 지출결의서 승인을 요청했습니다. ({{stepName}} 단계) - {{churchName}}',
+      variables: ['requesterName', 'amount', 'stepName', 'churchName'],
+    },
+    [NotificationChannel.PUSH]: {
+      title: '승인 요청',
+      content: '{{requesterName}}님의 지출결의서 승인이 필요합니다',
+      variables: ['requesterName'],
+    },
+    [NotificationChannel.IN_APP]: {
+      title: '지출결의서 승인 요청',
+      content: '{{requesterName}}님이 {{amount}} 지출결의서 승인을 요청했습니다',
+      variables: ['requesterName', 'amount'],
+    },
+  },
+
+  [NotificationType.EXPENSE_WORKFLOW_APPROVED]: {
+    [NotificationChannel.EMAIL]: {
+      subject: '지출결의서 최종 승인 완료',
+      title: '지출결의서 최종 승인 완료',
+      content: `안녕하세요, {{recipientName}}님!
+
+제출하신 지출결의서가 모든 승인 단계를 완료했습니다.
+
+• 제목: {{expenseTitle}}
+• 금액: {{amount}}
+• 승인 완료일: {{approvalDate}}
+
+지급 처리를 기다리고 있습니다.
+
+{{churchName}} 드림`,
+      variables: ['recipientName', 'expenseTitle', 'amount', 'approvalDate', 'churchName'],
+    },
+    [NotificationChannel.SMS]: {
+      title: '지출결의서 최종 승인',
+      content: '{{amount}} 지출결의서가 최종 승인되었습니다. 지급 처리를 기다리고 있습니다. - {{churchName}}',
+      variables: ['amount', 'churchName'],
+    },
+    [NotificationChannel.PUSH]: {
+      title: '승인 완료',
+      content: '지출결의서가 최종 승인되었습니다',
+      variables: [],
+    },
+    [NotificationChannel.IN_APP]: {
+      title: '지출결의서 최종 승인 완료',
+      content: '{{amount}} 지출결의서가 모든 승인을 완료했습니다',
+      variables: ['amount'],
+    },
+  },
+
+  [NotificationType.EXPENSE_WORKFLOW_REJECTED]: {
+    [NotificationChannel.EMAIL]: {
+      subject: '지출결의서 반려',
+      title: '지출결의서 반려',
+      content: `안녕하세요, {{recipientName}}님!
+
+제출하신 지출결의서가 승인 과정에서 반려되었습니다.
+
+• 제목: {{expenseTitle}}
+• 금액: {{amount}}
+• 반려 단계: {{stepName}}
+• 반려 사유: {{rejectionReason}}
+
+필요시 수정 후 다시 제출해 주시기 바랍니다.
+
+{{churchName}} 드림`,
+      variables: ['recipientName', 'expenseTitle', 'amount', 'stepName', 'rejectionReason', 'churchName'],
+    },
+    [NotificationChannel.SMS]: {
+      title: '지출결의서 반려',
+      content: '{{amount}} 지출결의서가 {{stepName}} 단계에서 반려되었습니다. 사유: {{rejectionReason}} - {{churchName}}',
+      variables: ['amount', 'stepName', 'rejectionReason', 'churchName'],
+    },
+    [NotificationChannel.PUSH]: {
+      title: '지출결의서 반려',
+      content: '지출결의서가 반려되었습니다',
+      variables: [],
+    },
+    [NotificationChannel.IN_APP]: {
+      title: '지출결의서 반려',
+      content: '{{amount}} 지출결의서가 반려되었습니다. 사유: {{rejectionReason}}',
+      variables: ['amount', 'rejectionReason'],
+    },
+  },
+
   [NotificationType.CUSTOM]: {
     [NotificationChannel.EMAIL]: {
       subject: '{{title}}',

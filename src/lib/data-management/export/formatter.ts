@@ -137,6 +137,9 @@ export class DataFormatter {
       receiptUrl: report.receiptUrl,
       createdAt: report.createdAt,
       updatedAt: report.updatedAt,
+      workflowStatus: report.workflowStatus,
+      currentStep: report.currentStep,
+      totalSteps: report.totalSteps,
       requesterName: report.requester?.name || ''
     }))
   }

@@ -64,6 +64,9 @@ model User {
   requestedBudgetChanges BudgetChange[]     @relation("BudgetChangeRequester")
   approvedBudgetChanges  BudgetChange[]     @relation("BudgetChangeApprover")
   managedDepartments   Department[]         @relation("DepartmentBudgetManager")
+  
+  // Approval workflow relations
+  approvalSteps        ApprovalStep[]       @relation("ApprovalStepApprover")
 
   @@map("users")
 }
@@ -193,6 +196,9 @@ model ExpenseReport {
   amount          Decimal
   category        ExpenseCategory
   status          ReportStatus    @default(PENDING)
+  workflowStatus  WorkflowStatus  @default(DRAFT)
+  currentStep     Int             @default(0)
+  totalSteps      Int             @default(3)
   requestDate     DateTime        @default(now())
   approvedDate    DateTime?
   rejectedDate    DateTime?
@@ -206,8 +212,30 @@ model ExpenseReport {
   church          Church          @relation(fields: [churchId], references: [id], onDelete: Cascade)
   requester       User            @relation("ExpenseRequester", fields: [requesterId], references: [id])
   budgetItem      BudgetItem?     @relation("BudgetItemExpenses", fields: [budgetItemId], references: [id])
+  approvals       ApprovalStep[]
 
   @@map("expense_reports")
+}
+
+// 전자결재 승인 단계 모델
+model ApprovalStep {
+  id              String          @id @default(cuid())
+  expenseReportId String
+  stepOrder       Int             // 1: 부서회계, 2: 부장, 3: 위원장
+  role            UserRole        // 승인자 역할
+  approverId      String?         // 실제 승인자 ID
+  status          ApprovalStatus  @default(PENDING)
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  comment         String?         // 승인/반려 의견
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  expenseReport   ExpenseReport   @relation(fields: [expenseReportId], references: [id], onDelete: Cascade)
+  approver        User?           @relation("ApprovalStepApprover", fields: [approverId], references: [id])
+  
+  @@unique([expenseReportId, stepOrder])
+  @@map("approval_steps")
 }
 
 model AccountCode {
@@ -449,6 +477,9 @@ enum NotificationType {
   EXPENSE_APPROVAL_REQUEST
   EXPENSE_APPROVED
   EXPENSE_REJECTED
+  EXPENSE_WORKFLOW_STEP_APPROVAL
+  EXPENSE_WORKFLOW_APPROVED
+  EXPENSE_WORKFLOW_REJECTED
   SYSTEM_ANNOUNCEMENT
   WELCOME_NEW_MEMBER
   PAYMENT_REMINDER
@@ -642,4 +673,22 @@ enum BudgetChangeStatus {
   PENDING     // 대기중
   APPROVED    // 승인됨
   REJECTED    // 반려됨
+}
+
+// 전자결재 워크플로우 상태
+enum WorkflowStatus {
+  DRAFT       // 초안
+  SUBMITTED   // 제출됨
+  IN_PROGRESS // 승인 진행중
+  APPROVED    // 최종 승인됨
+  REJECTED    // 반려됨
+  CANCELLED   // 취소됨
+}
+
+// 개별 승인 단계 상태
+enum ApprovalStatus {
+  PENDING     // 승인 대기
+  APPROVED    // 승인됨
+  REJECTED    // 반려됨
+  SKIPPED     // 생략됨
 }

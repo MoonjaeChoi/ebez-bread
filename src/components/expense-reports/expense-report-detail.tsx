@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { trpc } from '@/lib/trpc/client'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,26 +20,48 @@ import {
   Clock, 
   CheckCircle, 
   XCircle,
-  Download
+  Download,
+  ArrowRight,
+  Shield,
+  Send
 } from 'lucide-react'
 import { getRoleDisplayName } from '@/lib/permissions'
-import { ReportStatus } from '@prisma/client'
+import { ReportStatus, WorkflowStatus } from '@prisma/client'
+import { toast } from 'sonner'
+import { ExpenseWorkflowApproval } from './expense-workflow-approval'
 
 interface ExpenseReportDetailProps {
   isOpen: boolean
   onClose: () => void
   reportId: string
+  showSubmitButton?: boolean
+  onRefresh?: () => void
 }
 
 export function ExpenseReportDetail({ 
   isOpen, 
   onClose, 
-  reportId 
+  reportId,
+  showSubmitButton = false,
+  onRefresh
 }: ExpenseReportDetailProps) {
-  const { data: report, isLoading } = trpc.expenseReports.getById.useQuery(
+  const [showWorkflowApproval, setShowWorkflowApproval] = useState(false)
+  
+  const { data: report, isLoading, refetch } = trpc.expenseReports.getById.useQuery(
     { id: reportId },
     { enabled: !!reportId && isOpen }
   )
+
+  const submitMutation = trpc.expenseReports.submit.useMutation({
+    onSuccess: () => {
+      toast.success('지출결의서가 제출되었습니다')
+      refetch()
+      onRefresh?.()
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR', {
@@ -77,6 +100,53 @@ export function ExpenseReportDetail({
     )
   }
 
+  const getWorkflowStatusBadge = (workflowStatus: WorkflowStatus) => {
+    switch (workflowStatus) {
+      case 'DRAFT':
+        return <Badge variant="outline">초안</Badge>
+      case 'SUBMITTED':
+        return <Badge variant="secondary">제출됨</Badge>
+      case 'IN_PROGRESS':
+        return <Badge variant="default" className="bg-yellow-600">승인 진행중</Badge>
+      case 'APPROVED':
+        return <Badge variant="default" className="bg-green-600">최종 승인</Badge>
+      case 'REJECTED':
+        return <Badge variant="destructive">반려</Badge>
+      case 'CANCELLED':
+        return <Badge variant="outline" className="text-gray-500">취소됨</Badge>
+      default:
+        return <Badge variant="outline">{workflowStatus}</Badge>
+    }
+  }
+
+  const getStepName = (stepOrder: number) => {
+    switch (stepOrder) {
+      case 1: return '부서회계'
+      case 2: return '부장'  
+      case 3: return '위원장'
+      default: return '알 수 없음'
+    }
+  }
+
+  const getStepIcon = (stepOrder: number, status: string, isCurrentStep: boolean) => {
+    const iconClass = "w-4 h-4"
+    
+    if (status === 'APPROVED') {
+      return <CheckCircle className={`${iconClass} text-green-600`} />
+    } else if (status === 'REJECTED') {
+      return <XCircle className={`${iconClass} text-red-600`} />
+    } else if (isCurrentStep) {
+      return <Clock className={`${iconClass} text-yellow-600`} />
+    } else {
+      return <Clock className={`${iconClass} text-gray-400`} />
+    }
+  }
+
+  const handleSubmit = () => {
+    if (!report) return
+    submitMutation.mutate({ id: report.id })
+  }
+
   if (isLoading) {
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -102,15 +172,119 @@ export function ExpenseReportDetail({
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            지출결의서 상세 정보
-            {getStatusBadge(report.status)}
+            <div className="flex items-center space-x-2">
+              <Shield className="w-5 h-5" />
+              <span>지출결의서 상세 정보</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              {report.workflowStatus && getWorkflowStatusBadge(report.workflowStatus)}
+              {getStatusBadge(report.status)}
+            </div>
           </DialogTitle>
           <DialogDescription>
-            지출결의서의 상세 정보를 확인할 수 있습니다.
+            3단계 전자결재 시스템을 통한 지출결의서 상세 정보입니다.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* 워크플로우 진행 상황 */}
+          {report.approvals && report.approvals.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  <Shield className="w-5 h-5" />
+                  <span>결재 진행 상황</span>
+                  {report.workflowStatus && getWorkflowStatusBadge(report.workflowStatus)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between space-x-4">
+                  {report.approvals?.map((approval, index) => (
+                    <div key={approval.id} className="flex-1">
+                      <div className="text-center space-y-2">
+                        <div className="flex justify-center">
+                          {getStepIcon(
+                            approval.stepOrder, 
+                            approval.status, 
+                            report.currentStep === approval.stepOrder
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {getStepName(approval.stepOrder)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {approval.status === 'APPROVED' ? '승인 완료' :
+                             approval.status === 'REJECTED' ? '반려' :
+                             report.currentStep === approval.stepOrder ? '승인 대기' : '대기'}
+                          </p>
+                          {approval.approver && (
+                            <p className="text-xs text-gray-600 mt-1">
+                              {approval.approver.name}
+                            </p>
+                          )}
+                          {approval.approvedAt && (
+                            <p className="text-xs text-green-600 mt-1">
+                              {formatDate(new Date(approval.approvedAt))}
+                            </p>
+                          )}
+                          {approval.rejectedAt && (
+                            <p className="text-xs text-red-600 mt-1">
+                              {formatDate(new Date(approval.rejectedAt))}
+                            </p>
+                          )}
+                          {approval.comment && (
+                            <p className="text-xs text-gray-600 mt-1 p-1 bg-gray-100 rounded text-center">
+                              {approval.comment}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {index < report.approvals.length - 1 && (
+                        <div className="flex justify-center mt-2">
+                          <ArrowRight className="w-4 h-4 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="mt-4 text-center text-sm text-gray-600">
+                  {report.workflowStatus === 'DRAFT' && '초안 상태입니다. 결재를 위해 제출해주세요.'}
+                  {report.workflowStatus === 'IN_PROGRESS' && (
+                    <>현재 단계: <strong>{getStepName(report.currentStep)}</strong> 승인 대기</>
+                  )}
+                  {report.workflowStatus === 'APPROVED' && '모든 단계의 승인이 완료되었습니다.'}
+                  {report.workflowStatus === 'REJECTED' && '결재 과정에서 반려되었습니다.'}
+                </div>
+
+                {/* 제출/승인 버튼 */}
+                <div className="mt-4 flex justify-center space-x-2">
+                  {showSubmitButton && report.workflowStatus === 'DRAFT' && (
+                    <Button 
+                      onClick={handleSubmit}
+                      disabled={submitMutation.isLoading}
+                      className="flex items-center space-x-2"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>{submitMutation.isLoading ? '제출 중...' : '결재 제출'}</span>
+                    </Button>
+                  )}
+                  
+                  {report.workflowStatus === 'IN_PROGRESS' && (
+                    <Button 
+                      onClick={() => setShowWorkflowApproval(true)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span>승인 처리</span>
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 기본 정보 */}
           <Card>
             <CardHeader>
@@ -290,6 +464,19 @@ export function ExpenseReportDetail({
           </Card>
         </div>
       </DialogContent>
+      
+      {/* 워크플로우 승인 다이얼로그 */}
+      {showWorkflowApproval && (
+        <ExpenseWorkflowApproval
+          isOpen={showWorkflowApproval}
+          onClose={() => setShowWorkflowApproval(false)}
+          reportId={reportId}
+          onSuccess={() => {
+            refetch()
+            onRefresh?.()
+          }}
+        />
+      )}
     </Dialog>
   )
 }

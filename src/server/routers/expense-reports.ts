@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { router, protectedProcedure, managerProcedure, adminProcedure } from '@/lib/trpc/server'
-import { ReportStatus } from '@prisma/client'
+import { ReportStatus, WorkflowStatus, ApprovalStatus, UserRole } from '@prisma/client'
 import { canApproveExpenses } from '@/lib/permissions'
 import { logger } from '@/lib/logger'
 import { trackDatabaseOperation, performanceMonitor } from '@/lib/monitoring/performance'
@@ -24,6 +24,18 @@ const expenseReportApprovalSchema = z.object({
   id: z.string(),
   status: z.enum(['APPROVED', 'REJECTED', 'PAID']),
   rejectionReason: z.string().optional(),
+})
+
+// 3단계 워크플로우 승인 스키마
+const workflowApprovalSchema = z.object({
+  expenseReportId: z.string(),
+  action: z.enum(['APPROVE', 'REJECT']),
+  comment: z.string().optional(),
+})
+
+// 지출결의서 제출 스키마
+const expenseSubmitSchema = z.object({
+  id: z.string(),
 })
 
 const expenseReportQuerySchema = z.object({
@@ -122,6 +134,17 @@ export const expenseReportsRouter = router({
               name: true,
               email: true,
               role: true,
+            },
+          },
+          approvals: {
+            orderBy: { stepOrder: 'asc' },
+            include: {
+              approver: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -240,6 +263,9 @@ export const expenseReportsRouter = router({
             requesterId: ctx.session.user.id,
             churchId: ctx.session.user.churchId,
             status: 'PENDING',
+            workflowStatus: 'DRAFT',
+            currentStep: 0,
+            totalSteps: 3,
           },
           include: {
             requester: {
@@ -268,10 +294,8 @@ export const expenseReportsRouter = router({
           },
         })
 
-        // 예산 집행 현황 업데이트 (대기 중인 금액 증가)
-        if (newExpenseReport.budgetItemId) {
-          await updateBudgetExecution(newExpenseReport.budgetItemId, tx)
-        }
+        // 3단계 승인 워크플로우 단계 생성
+        await createApprovalSteps(newExpenseReport.id, tx)
 
         return newExpenseReport
       })
@@ -852,6 +876,263 @@ export const expenseReportsRouter = router({
 
       return updatedExpense
     }),
+
+  // 지출결의서 제출 (초안 -> 승인 대기)
+  submit: protectedProcedure
+    .input(expenseSubmitSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { id } = input
+
+      const expense = await ctx.prisma.expenseReport.findFirst({
+        where: {
+          id,
+          requesterId: ctx.session.user.id,
+          churchId: ctx.session.user.churchId,
+        },
+      })
+
+      if (!expense) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: '지출결의서를 찾을 수 없습니다',
+        })
+      }
+
+      if (expense.workflowStatus !== 'DRAFT') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '초안 상태의 지출결의서만 제출할 수 있습니다',
+        })
+      }
+
+      // 제출 시 첫 번째 승인 단계로 진행
+      const updatedExpense = await ctx.prisma.$transaction(async (tx) => {
+        const updated = await tx.expenseReport.update({
+          where: { id },
+          data: {
+            workflowStatus: 'IN_PROGRESS',
+            currentStep: 1,
+            status: 'PENDING',
+          },
+          include: {
+            approvals: {
+              orderBy: { stepOrder: 'asc' },
+            },
+          },
+        })
+
+        // 첫 번째 단계(부서회계) 알림 발송
+        await sendApprovalNotification(updated.id, 1, tx)
+
+        return updated
+      })
+
+      return updatedExpense
+    }),
+
+  // 워크플로우 승인/반려 처리
+  approveWorkflowStep: protectedProcedure
+    .input(workflowApprovalSchema)
+    .mutation(async ({ ctx, input }) => {
+      const { expenseReportId, action, comment } = input
+      const userId = ctx.session.user.id
+      const userRole = ctx.session.user.role as UserRole
+
+      const expense = await ctx.prisma.expenseReport.findFirst({
+        where: {
+          id: expenseReportId,
+          churchId: ctx.session.user.churchId,
+        },
+        include: {
+          approvals: {
+            orderBy: { stepOrder: 'asc' },
+          },
+        },
+      })
+
+      if (!expense) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: '지출결의서를 찾을 수 없습니다',
+        })
+      }
+
+      if (expense.workflowStatus !== 'IN_PROGRESS') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '승인 진행 중인 지출결의서가 아닙니다',
+        })
+      }
+
+      // 현재 승인 단계 확인
+      const currentApproval = expense.approvals.find(
+        approval => approval.stepOrder === expense.currentStep && approval.status === 'PENDING'
+      )
+
+      if (!currentApproval) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '현재 승인 단계를 찾을 수 없습니다',
+        })
+      }
+
+      // 승인 권한 확인
+      if (!canApproveAtStep(userRole, currentApproval.stepOrder)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: '이 단계의 승인 권한이 없습니다',
+        })
+      }
+
+      return await ctx.prisma.$transaction(async (tx) => {
+        // 현재 단계 승인/반려 처리
+        await tx.approvalStep.update({
+          where: { id: currentApproval.id },
+          data: {
+            status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+            approverId: userId,
+            approvedAt: action === 'APPROVE' ? new Date() : null,
+            rejectedAt: action === 'REJECT' ? new Date() : null,
+            comment,
+          },
+        })
+
+        let updatedExpense
+        
+        if (action === 'REJECT') {
+          // 반려된 경우 전체 워크플로우 종료
+          updatedExpense = await tx.expenseReport.update({
+            where: { id: expenseReportId },
+            data: {
+              workflowStatus: 'REJECTED',
+              status: 'REJECTED',
+              rejectedDate: new Date(),
+              rejectionReason: comment || '승인자가 반려하였습니다',
+            },
+            include: {
+              approvals: {
+                orderBy: { stepOrder: 'asc' },
+              },
+            },
+          })
+
+          // 신청자에게 반려 알림
+          await sendRejectionNotification(expenseReportId, expense.currentStep, comment, tx)
+        } else {
+          // 승인된 경우
+          if (expense.currentStep >= expense.totalSteps) {
+            // 최종 승인 완료
+            updatedExpense = await tx.expenseReport.update({
+              where: { id: expenseReportId },
+              data: {
+                workflowStatus: 'APPROVED',
+                status: 'APPROVED',
+                approvedDate: new Date(),
+              },
+              include: {
+                approvals: {
+                  orderBy: { stepOrder: 'asc' },
+                },
+              },
+            })
+
+            // 최종 승인 완료 알림
+            await sendFinalApprovalNotification(expenseReportId, tx)
+          } else {
+            // 다음 승인 단계로 진행
+            const nextStep = expense.currentStep + 1
+            updatedExpense = await tx.expenseReport.update({
+              where: { id: expenseReportId },
+              data: {
+                currentStep: nextStep,
+              },
+              include: {
+                approvals: {
+                  orderBy: { stepOrder: 'asc' },
+                },
+              },
+            })
+
+            // 다음 단계 승인자에게 알림
+            await sendApprovalNotification(expenseReportId, nextStep, tx)
+          }
+        }
+
+        return updatedExpense
+      })
+    }),
+
+  // 내가 승인해야 할 지출결의서 목록
+  getMyApprovals: protectedProcedure
+    .input(z.object({
+      page: z.number().min(1).default(1),
+      limit: z.number().min(1).max(100).default(20),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { page, limit } = input
+      const skip = (page - 1) * limit
+      const userRole = ctx.session.user.role as UserRole
+
+      // 사용자 역할에 따른 승인 가능한 단계 확인
+      const approvalSteps = getApprovalStepsForRole(userRole)
+      if (approvalSteps.length === 0) {
+        return {
+          expenseReports: [],
+          total: 0,
+          pages: 0,
+          currentPage: page,
+        }
+      }
+
+      const where = {
+        churchId: ctx.session.user.churchId,
+        workflowStatus: 'IN_PROGRESS' as WorkflowStatus,
+        approvals: {
+          some: {
+            stepOrder: { in: approvalSteps },
+            status: 'PENDING' as ApprovalStatus,
+          },
+        },
+      }
+
+      const [expenseReports, total] = await Promise.all([
+        ctx.prisma.expenseReport.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            requester: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
+            },
+            approvals: {
+              orderBy: { stepOrder: 'asc' },
+              include: {
+                approver: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { requestDate: 'asc' },
+        }),
+        ctx.prisma.expenseReport.count({ where }),
+      ])
+
+      return {
+        expenseReports,
+        total,
+        pages: Math.ceil(total / limit),
+        currentPage: page,
+      }
+    }),
 })
 
 // 헬퍼 함수들
@@ -990,4 +1271,184 @@ async function updateBudgetExecution(budgetItemId: string, tx: any) {
       executionRate,
     },
   })
+}
+
+// 3단계 승인 워크플로우 단계 생성
+async function createApprovalSteps(expenseReportId: string, tx: any) {
+  const steps = [
+    { stepOrder: 1, role: 'DEPARTMENT_ACCOUNTANT' }, // 부서회계
+    { stepOrder: 2, role: 'DEPARTMENT_HEAD' },       // 부장
+    { stepOrder: 3, role: 'COMMITTEE_CHAIR' },       // 위원장
+  ]
+
+  for (const step of steps) {
+    await tx.approvalStep.create({
+      data: {
+        expenseReportId,
+        stepOrder: step.stepOrder,
+        role: step.role as UserRole,
+        status: 'PENDING',
+      },
+    })
+  }
+}
+
+// 역할별 승인 가능한 단계 반환
+function getApprovalStepsForRole(role: UserRole): number[] {
+  switch (role) {
+    case 'DEPARTMENT_ACCOUNTANT':
+      return [1] // 1단계: 부서회계
+    case 'DEPARTMENT_HEAD':
+      return [2] // 2단계: 부장
+    case 'COMMITTEE_CHAIR':
+      return [3] // 3단계: 위원장
+    case 'SUPER_ADMIN':
+    case 'FINANCIAL_MANAGER':
+      return [1, 2, 3] // 모든 단계 승인 가능
+    default:
+      return []
+  }
+}
+
+// 특정 단계에서 승인 권한 확인
+function canApproveAtStep(role: UserRole, stepOrder: number): boolean {
+  const allowedSteps = getApprovalStepsForRole(role)
+  return allowedSteps.includes(stepOrder)
+}
+
+// 승인 요청 알림 발송
+async function sendApprovalNotification(expenseReportId: string, stepOrder: number, tx: any) {
+  try {
+    // 해당 단계의 승인자들을 찾아서 알림 발송
+    const roleForStep = stepOrder === 1 ? 'DEPARTMENT_ACCOUNTANT' :
+                       stepOrder === 2 ? 'DEPARTMENT_HEAD' :
+                       stepOrder === 3 ? 'COMMITTEE_CHAIR' : null
+
+    if (!roleForStep) return
+
+    const expense = await tx.expenseReport.findUnique({
+      where: { id: expenseReportId },
+      include: {
+        requester: { select: { name: true } }
+      }
+    })
+
+    if (!expense) return
+
+    // 해당 역할을 가진 사용자들에게 알림 큐 생성
+    const approvers = await tx.user.findMany({
+      where: {
+        churchId: expense.churchId,
+        role: roleForStep,
+        isActive: true,
+      }
+    })
+
+    for (const approver of approvers) {
+      await tx.notificationQueue.create({
+        data: {
+          type: 'EXPENSE_WORKFLOW_STEP_APPROVAL',
+          recipientType: 'USER',
+          recipientId: approver.id,
+          title: `지출결의서 승인 요청`,
+          message: `${expense.requester.name}님이 ${formatCurrency(Number(expense.amount))} 지출결의서 승인을 요청했습니다. (${getStepName(stepOrder)} 단계)`,
+          relatedId: expenseReportId,
+          relatedType: 'EXPENSE_REPORT',
+          churchId: expense.churchId,
+          priority: 'NORMAL',
+          scheduledAt: new Date(),
+        }
+      })
+    }
+
+    logger.info('Approval notification sent', { churchId: expense.churchId })
+  } catch (error) {
+    logger.error('Failed to send approval notification', error as Error)
+  }
+}
+
+// 반려 알림 발송
+async function sendRejectionNotification(expenseReportId: string, stepOrder: number, comment: string | undefined, tx: any) {
+  try {
+    const expense = await tx.expenseReport.findUnique({
+      where: { id: expenseReportId },
+      include: {
+        requester: { select: { id: true, name: true } }
+      }
+    })
+
+    if (!expense) return
+
+    // 신청자에게 반려 알림
+    await tx.notificationQueue.create({
+      data: {
+        type: 'EXPENSE_WORKFLOW_REJECTED',
+        recipientType: 'USER',
+        recipientId: expense.requesterId,
+        title: `지출결의서 반려`,
+        message: `${formatCurrency(Number(expense.amount))} 지출결의서가 ${getStepName(stepOrder)} 단계에서 반려되었습니다.${comment ? ` 사유: ${comment}` : ''}`,
+        relatedId: expenseReportId,
+        relatedType: 'EXPENSE_REPORT',
+        churchId: expense.churchId,
+        priority: 'HIGH',
+        scheduledAt: new Date(),
+      }
+    })
+
+    logger.info('Rejection notification sent', { churchId: expense.churchId })
+  } catch (error) {
+    logger.error('Failed to send rejection notification', error as Error)
+  }
+}
+
+// 최종 승인 완료 알림 발송
+async function sendFinalApprovalNotification(expenseReportId: string, tx: any) {
+  try {
+    const expense = await tx.expenseReport.findUnique({
+      where: { id: expenseReportId },
+      include: {
+        requester: { select: { id: true, name: true } }
+      }
+    })
+
+    if (!expense) return
+
+    // 신청자에게 최종 승인 완료 알림
+    await tx.notificationQueue.create({
+      data: {
+        type: 'EXPENSE_WORKFLOW_APPROVED',
+        recipientType: 'USER',
+        recipientId: expense.requesterId,
+        title: `지출결의서 최종 승인`,
+        message: `${formatCurrency(Number(expense.amount))} 지출결의서가 모든 단계의 승인을 완료했습니다. 지급 처리를 기다리고 있습니다.`,
+        relatedId: expenseReportId,
+        relatedType: 'EXPENSE_REPORT',
+        churchId: expense.churchId,
+        priority: 'NORMAL',
+        scheduledAt: new Date(),
+      }
+    })
+
+    logger.info('Final approval notification sent', { churchId: expense.churchId })
+  } catch (error) {
+    logger.error('Failed to send final approval notification', error as Error)
+  }
+}
+
+// 단계 이름 반환
+function getStepName(stepOrder: number): string {
+  switch (stepOrder) {
+    case 1: return '부서회계'
+    case 2: return '부장'
+    case 3: return '위원장'
+    default: return '알 수 없음'
+  }
+}
+
+// 통화 형식 함수
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('ko-KR', {
+    style: 'currency',
+    currency: 'KRW',
+  }).format(amount)
 }
