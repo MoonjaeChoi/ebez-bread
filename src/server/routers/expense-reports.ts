@@ -14,6 +14,12 @@ const expenseReportCreateSchema = z.object({
   category: z.string().min(1, '지출 분류를 선택해주세요'),
   receiptUrl: z.string().optional(),
   budgetItemId: z.string().optional(), // 예산 항목 연결
+  // 3단계 결재담당자 지정
+  approvers: z.object({
+    step1: z.string().optional(), // 부서회계 담당자
+    step2: z.string().optional(), // 부장
+    step3: z.string().optional(), // 위원장
+  }).optional(),
 })
 
 const expenseReportUpdateSchema = expenseReportCreateSchema.extend({
@@ -295,7 +301,7 @@ export const expenseReportsRouter = router({
         })
 
         // 3단계 승인 워크플로우 단계 생성
-        await createApprovalSteps(newExpenseReport.id, tx)
+        await createApprovalSteps(newExpenseReport.id, tx, input.approvers)
 
         return newExpenseReport
       })
@@ -1062,6 +1068,39 @@ export const expenseReportsRouter = router({
       })
     }),
 
+  // 결재 담당자 후보 목록 조회
+  getApprovalCandidates: protectedProcedure
+    .query(async ({ ctx }) => {
+      const candidates = await ctx.prisma.user.findMany({
+        where: {
+          churchId: ctx.session.user.churchId,
+          isActive: true,
+          role: {
+            in: ['DEPARTMENT_ACCOUNTANT', 'DEPARTMENT_HEAD', 'COMMITTEE_CHAIR', 'FINANCIAL_MANAGER', 'SUPER_ADMIN']
+          }
+        },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          email: true,
+        },
+        orderBy: [
+          { role: 'asc' },
+          { name: 'asc' }
+        ]
+      })
+
+      // 역할별로 그룹화
+      const groupedCandidates = {
+        step1: candidates.filter(u => ['DEPARTMENT_ACCOUNTANT', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
+        step2: candidates.filter(u => ['DEPARTMENT_HEAD', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
+        step3: candidates.filter(u => ['COMMITTEE_CHAIR', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
+      }
+
+      return groupedCandidates
+    }),
+
   // 내가 승인해야 할 지출결의서 목록
   getMyApprovals: protectedProcedure
     .input(z.object({
@@ -1274,11 +1313,11 @@ async function updateBudgetExecution(budgetItemId: string, tx: any) {
 }
 
 // 3단계 승인 워크플로우 단계 생성
-async function createApprovalSteps(expenseReportId: string, tx: any) {
+async function createApprovalSteps(expenseReportId: string, tx: any, approvers?: { step1?: string; step2?: string; step3?: string }) {
   const steps = [
-    { stepOrder: 1, role: 'DEPARTMENT_ACCOUNTANT' }, // 부서회계
-    { stepOrder: 2, role: 'DEPARTMENT_HEAD' },       // 부장
-    { stepOrder: 3, role: 'COMMITTEE_CHAIR' },       // 위원장
+    { stepOrder: 1, role: 'DEPARTMENT_ACCOUNTANT', assignedUserId: approvers?.step1 }, // 부서회계
+    { stepOrder: 2, role: 'DEPARTMENT_HEAD', assignedUserId: approvers?.step2 },       // 부장
+    { stepOrder: 3, role: 'COMMITTEE_CHAIR', assignedUserId: approvers?.step3 },       // 위원장
   ]
 
   for (const step of steps) {
@@ -1287,6 +1326,7 @@ async function createApprovalSteps(expenseReportId: string, tx: any) {
         expenseReportId,
         stepOrder: step.stepOrder,
         role: step.role as UserRole,
+        assignedUserId: step.assignedUserId,
         status: 'PENDING',
       },
     })
@@ -1319,30 +1359,46 @@ function canApproveAtStep(role: UserRole, stepOrder: number): boolean {
 // 승인 요청 알림 발송
 async function sendApprovalNotification(expenseReportId: string, stepOrder: number, tx: any) {
   try {
-    // 해당 단계의 승인자들을 찾아서 알림 발송
-    const roleForStep = stepOrder === 1 ? 'DEPARTMENT_ACCOUNTANT' :
-                       stepOrder === 2 ? 'DEPARTMENT_HEAD' :
-                       stepOrder === 3 ? 'COMMITTEE_CHAIR' : null
-
-    if (!roleForStep) return
-
     const expense = await tx.expenseReport.findUnique({
       where: { id: expenseReportId },
       include: {
-        requester: { select: { name: true } }
+        requester: { select: { name: true } },
+        approvals: {
+          where: { stepOrder },
+          include: {
+            assignedUser: { select: { id: true, name: true } }
+          }
+        }
       }
     })
 
     if (!expense) return
 
-    // 해당 역할을 가진 사용자들에게 알림 큐 생성
-    const approvers = await tx.user.findMany({
-      where: {
-        churchId: expense.churchId,
-        role: roleForStep,
-        isActive: true,
-      }
-    })
+    const currentApprovalStep = expense.approvals[0]
+    if (!currentApprovalStep) return
+
+    // 지정된 승인자가 있으면 그 사람에게만, 없으면 해당 역할을 가진 모든 사용자에게
+    let approvers = []
+    
+    if (currentApprovalStep.assignedUserId && currentApprovalStep.assignedUser) {
+      // 지정된 승인자에게만 알림
+      approvers = [currentApprovalStep.assignedUser]
+    } else {
+      // 역할에 따른 모든 승인자에게 알림
+      const roleForStep = stepOrder === 1 ? 'DEPARTMENT_ACCOUNTANT' :
+                         stepOrder === 2 ? 'DEPARTMENT_HEAD' :
+                         stepOrder === 3 ? 'COMMITTEE_CHAIR' : null
+
+      if (!roleForStep) return
+
+      approvers = await tx.user.findMany({
+        where: {
+          churchId: expense.churchId,
+          role: roleForStep,
+          isActive: true,
+        }
+      })
+    }
 
     for (const approver of approvers) {
       await tx.notificationQueue.create({

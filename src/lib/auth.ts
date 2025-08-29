@@ -7,7 +7,8 @@ import { logger } from './logger'
 // import { setUserContext, clearUserContext } from './monitoring/sentry' // 일시적으로 비활성화
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
+  // 개발 환경에서는 database adapter 비활성화하여 DB 호출 최소화
+  // adapter: process.env.NODE_ENV === 'production' ? PrismaAdapter(prisma) as any : undefined,
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -29,12 +30,25 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          // 개발 환경에서 DB 호출 최소화 - church 정보는 나중에 조회
           const user = await prisma.user.findUnique({
             where: {
               email: credentials.email
             },
-            include: {
-              church: true
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              password: true,
+              role: true,
+              churchId: true,
+              isActive: true,
+              church: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
             }
           })
 
@@ -122,24 +136,15 @@ export const authOptions: NextAuthOptions = {
     updateAge: process.env.NODE_ENV === 'development' ? 60 * 60 : 24 * 60 * 60, // 1 hour in dev, 24 hours in prod
   },
   callbacks: {
-    async jwt({ token, user, account, trigger }) {
-      // Only update token on sign-in or when user data changes, not on every request
-      if (user) {
+    async jwt({ token, user, trigger }) {
+      // 개발 환경에서는 로깅 최소화
+      if (user && (trigger === 'signIn' || trigger === 'signUp')) {
         token.role = user.role
         token.churchId = user.churchId
         token.churchName = user.churchName
         
-        // Only log during actual authentication, not session updates
-        if (trigger === 'signIn' || trigger === 'signUp') {
-          logger.debug('JWT token created for user', {
-            userId: user.id,
-            churchId: user.churchId as string,
-            action: 'jwt_created',
-            metadata: {
-              provider: account?.provider,
-              role: user.role
-            }
-          })
+        if (process.env.NODE_ENV === 'development') {
+          console.log('JWT created for:', user.email, 'Role:', user.role)
         }
       }
       return token

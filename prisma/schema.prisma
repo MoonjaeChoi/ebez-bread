@@ -66,6 +66,7 @@ model User {
   managedDepartments   Department[]         @relation("DepartmentBudgetManager")
   
   // Approval workflow relations
+  assignedApprovalSteps ApprovalStep[]      @relation("ApprovalStepAssignee")
   approvalSteps        ApprovalStep[]       @relation("ApprovalStepApprover")
 
   @@map("users")
@@ -193,7 +194,7 @@ model ExpenseReport {
   id              String          @id @default(cuid())
   title           String
   description     String?
-  amount          Decimal
+  amount          Decimal          @db.Decimal(15,2)
   category        ExpenseCategory
   status          ReportStatus    @default(PENDING)
   workflowStatus  WorkflowStatus  @default(DRAFT)
@@ -223,7 +224,8 @@ model ApprovalStep {
   expenseReportId String
   stepOrder       Int             // 1: 부서회계, 2: 부장, 3: 위원장
   role            UserRole        // 승인자 역할
-  approverId      String?         // 실제 승인자 ID
+  assignedUserId  String?         // 지정된 승인자 ID (생성 시 설정)
+  approverId      String?         // 실제 승인자 ID (승인 시 설정)
   status          ApprovalStatus  @default(PENDING)
   approvedAt      DateTime?
   rejectedAt      DateTime?
@@ -232,6 +234,7 @@ model ApprovalStep {
   updatedAt       DateTime        @updatedAt
   
   expenseReport   ExpenseReport   @relation(fields: [expenseReportId], references: [id], onDelete: Cascade)
+  assignedUser    User?           @relation("ApprovalStepAssignee", fields: [assignedUserId], references: [id])
   approver        User?           @relation("ApprovalStepApprover", fields: [approverId], references: [id])
   
   @@unique([expenseReportId, stepOrder])
@@ -617,7 +620,7 @@ model BudgetChange {
 model Transaction {
   id              String      @id @default(cuid())
   description     String
-  amount          Decimal     @db.Decimal(15,2)
+  amount          Decimal          @db.Decimal(15,2)
   transactionDate DateTime
   reference       String?     // 참조번호
   voucherNumber   String?     // 전표번호

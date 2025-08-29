@@ -33,6 +33,12 @@ const expenseReportFormSchema = z.object({
   amount: z.number().min(0.01, '금액을 입력해주세요').max(999999999, '금액이 너무 큽니다'),
   category: z.string().min(1, '지출 분류를 선택해주세요'),
   receiptUrl: z.string().optional(),
+  // 결재담당자 선택
+  approvers: z.object({
+    step1: z.string().optional(),
+    step2: z.string().optional(), 
+    step3: z.string().optional(),
+  }).optional(),
 })
 
 type ExpenseReportFormData = z.infer<typeof expenseReportFormSchema>
@@ -54,6 +60,7 @@ export function ExpenseReportForm({
   const isEditing = !!reportId
 
   const { data: categories } = trpc.expenseReports.getCategories.useQuery()
+  const { data: approvalCandidates } = trpc.expenseReports.getApprovalCandidates.useQuery()
   
   const { data: editData } = trpc.expenseReports.getById.useQuery(
     { id: reportId! },
@@ -98,6 +105,11 @@ export function ExpenseReportForm({
       amount: 0,
       category: '',
       receiptUrl: '',
+      approvers: {
+        step1: '',
+        step2: '',
+        step3: '',
+      },
     },
   })
 
@@ -271,6 +283,88 @@ export function ExpenseReportForm({
                 {...register('description')}
               />
             </div>
+
+            {/* 결재담당자 선택 */}
+            {!isEditing && (
+              <div className="space-y-4">
+                <Label className="text-lg font-medium">결재담당자 지정</Label>
+                <p className="text-sm text-gray-600">각 단계별로 결재담당자를 지정할 수 있습니다. 지정하지 않으면 해당 역할의 모든 사용자에게 승인 요청이 발송됩니다.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* 1단계: 부서회계 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="step1">1단계: 부서회계</Label>
+                    <Select
+                      value={watch('approvers')?.step1 || ''}
+                      onValueChange={(value) => setValue('approvers.step1', value || undefined)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="담당자 선택 (선택사항)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">역할별 자동 배정</SelectItem>
+                        {approvalCandidates?.step1?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.name}</span>
+                              <span className="text-xs text-gray-500">{user.email}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 2단계: 부장 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="step2">2단계: 부장</Label>
+                    <Select
+                      value={watch('approvers')?.step2 || ''}
+                      onValueChange={(value) => setValue('approvers.step2', value || undefined)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="담당자 선택 (선택사항)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">역할별 자동 배정</SelectItem>
+                        {approvalCandidates?.step2?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.name}</span>
+                              <span className="text-xs text-gray-500">{user.email}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 3단계: 위원장 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="step3">3단계: 위원장</Label>
+                    <Select
+                      value={watch('approvers')?.step3 || ''}
+                      onValueChange={(value) => setValue('approvers.step3', value || undefined)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="담당자 선택 (선택사항)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">역할별 자동 배정</SelectItem>
+                        {approvalCandidates?.step3?.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            <div className="flex flex-col">
+                              <span>{user.name}</span>
+                              <span className="text-xs text-gray-500">{user.email}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 영수증 업로드 */}
             <div className="space-y-2">
