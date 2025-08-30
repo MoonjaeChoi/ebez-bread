@@ -70,22 +70,32 @@ export function DepartmentBudgetAllocation() {
   const [isLoading, setIsLoading] = useState(false)
 
   // 부서 목록 조회
-  const { data: departments } = trpc.departments.getAll.useQuery({
+  const { data: departments, error: departmentsError, isLoading: departmentsLoading } = trpc.departments.getAll.useQuery({
     includeInactive: false
+  }, {
+    retry: 3,
+    staleTime: 5 * 60 * 1000, // 5분
   })
 
   // 기존 예산 배정 조회
-  const { data: existingBudgets, refetch: refetchBudgets } = trpc.budgets.getAll.useQuery({
+  const { data: existingBudgets, refetch: refetchBudgets, error: budgetsError, isLoading: budgetsLoading } = trpc.budgets.getAll.useQuery({
     year: selectedYear,
     page: 1,
     limit: 100
+  }, {
+    retry: 3,
+    staleTime: 2 * 60 * 1000, // 2분
   })
 
-  // 회계 계정코드 목록 조회
-  const { data: accountCodes } = trpc.accountCodes.getAll.useQuery({
+  // 회계 계정코드 목록 조회 (선택사항)
+  const { data: accountCodes, error: accountCodesError, isLoading: accountCodesLoading } = trpc.accountCodes.getAll.useQuery({
     page: 1,
     limit: 100,
     includeInactive: false
+  }, {
+    retry: 2,
+    staleTime: 10 * 60 * 1000, // 10분
+    enabled: true, // 항상 실행하되 에러 시 무시
   })
 
   // 카테고리별 추천 회계 계정코드 필터링 함수
@@ -381,7 +391,8 @@ export function DepartmentBudgetAllocation() {
   const allocationPercentage = currentData.totalBudget > 0 ? 
     (currentData.allocatedAmount / currentData.totalBudget) * 100 : 0
 
-  if (!departments || !departments.departments) {
+  // 로딩 상태 처리 (필수 데이터만)
+  if (departmentsLoading || budgetsLoading) {
     return (
       <div className="space-y-6">
         <Card>
@@ -394,6 +405,90 @@ export function DepartmentBudgetAllocation() {
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-32 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // 중요한 에러만 처리 (회계 계정코드 에러는 무시)
+  if (departmentsError || budgetsError) {
+    const error = departmentsError || budgetsError
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              데이터 조회 오류
+            </CardTitle>
+            <CardDescription>
+              부서별 예산 데이터를 불러오는 중 문제가 발생했습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">
+                  오류 메시지: {error?.message || '알 수 없는 오류가 발생했습니다.'}
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.reload()}
+                  className="flex items-center gap-2"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                  페이지 새로고침
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    refetchBudgets()
+                  }}
+                >
+                  다시 시도
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // 데이터 없음 상태 처리
+  if (!departments?.departments || departments.departments.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              부서별 예산 배정
+            </CardTitle>
+            <CardDescription>
+              연간 예산을 부서별로 배정하고 카테고리별로 세부 계획을 수립하세요
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-12">
+              <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium text-muted-foreground mb-2">
+                등록된 부서가 없습니다
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                예산을 배정하려면 먼저 부서를 등록해주세요.
+              </p>
+              <Button 
+                onClick={() => window.location.href = '/dashboard/admin/departments'}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                부서 관리로 이동
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -549,42 +644,58 @@ export function DepartmentBudgetAllocation() {
                             <span>{existingItem.accountName}</span>
                           </div>
                         )}
-                        <div className="ml-[5.5rem]">
-                          <Select 
-                            value={existingItem?.accountCodeId || ''} 
-                            onValueChange={(value) => {
-                              if (value) {
-                                handleAccountCodeChange(
-                                  allocation.departmentId,
-                                  category,
-                                  value
-                                )
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue 
-                                placeholder="회계 계정 선택"
-                                className="text-left"
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getFilteredAccountCodes(category).map((account) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">{account.code}</span>
-                                    <span>{account.name}</span>
+                        {/* 회계 계정코드 선택 (데이터가 있을 때만 표시) */}
+                        {accountCodes?.accountCodes && accountCodes.accountCodes.length > 0 && (
+                          <div className="ml-[5.5rem]">
+                            <Select 
+                              value={existingItem?.accountCodeId || ''} 
+                              onValueChange={(value) => {
+                                if (value) {
+                                  handleAccountCodeChange(
+                                    allocation.departmentId,
+                                    category,
+                                    value
+                                  )
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue 
+                                  placeholder="회계 계정 선택 (선택사항)"
+                                  className="text-left"
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getFilteredAccountCodes(category).map((account) => (
+                                  <SelectItem key={account.id} value={account.id}>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">{account.code}</span>
+                                      <span>{account.name}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                                {getFilteredAccountCodes(category).length === 0 && (
+                                  <div className="px-2 py-1 text-xs text-muted-foreground">
+                                    해당 카테고리에 적합한 회계 계정이 없습니다.
                                   </div>
-                                </SelectItem>
-                              ))}
-                              {getFilteredAccountCodes(category).length === 0 && (
-                                <div className="px-2 py-1 text-xs text-muted-foreground">
-                                  해당 카테고리에 적합한 회계 계정이 없습니다.
-                                </div>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        
+                        {/* 회계 계정코드가 로딩 중이거나 에러일 때 안내 */}
+                        {accountCodesLoading && (
+                          <div className="ml-[5.5rem] text-xs text-muted-foreground">
+                            회계 계정 목록을 불러오는 중...
+                          </div>
+                        )}
+                        
+                        {accountCodesError && (
+                          <div className="ml-[5.5rem] text-xs text-orange-600">
+                            회계 계정을 불러올 수 없습니다 (선택사항)
+                          </div>
+                        )}
                       </div>
                     )
                   })}
