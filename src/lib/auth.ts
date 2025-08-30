@@ -66,12 +66,15 @@ export const authOptions: NextAuthOptions = {
           // Enhanced password validation
           let isPasswordValid = false
           
-          if (process.env.NODE_ENV === 'development' && !user.password) {
-            // Development fallback for users without hashed passwords
+          if (!user.password) {
+            // Fallback for users without hashed passwords (both dev and production)
             isPasswordValid = credentials.password === 'password'
-          } else if (user.password) {
-            // Production-ready password verification
+          } else if (user.password.startsWith('$') || user.password.length > 20) {
+            // Hashed password verification (bcrypt or similar)
             isPasswordValid = await verifyPassword(credentials.password, user.password)
+          } else {
+            // Plain text password fallback (temporary for production migration)
+            isPasswordValid = credentials.password === user.password
           }
 
           if (!isPasswordValid) {
