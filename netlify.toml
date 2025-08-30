@@ -8,3 +8,6 @@
 
 [context.deploy-preview]
   command = "yarn build && echo \"NEXTAUTH_URL=$DEPLOY_PRIME_URL\" > .env.local"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
