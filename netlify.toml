@@ -8,10 +8,14 @@
 [context.production]
   [context.production.environment]
     NEXTAUTH_URL = "${URL}"
+    NEXTAUTH_SECRET = "ebenezer-church-management-system-secret-key-2024"
+    DATABASE_URL = "postgresql://postgres.kxasbeewsniwpmlrhmat:select123%2E123456789797979797979755576575757575@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres"
 
 [context.deploy-preview]
   [context.deploy-preview.environment]
     NEXTAUTH_URL = "${DEPLOY_PRIME_URL}"
+    NEXTAUTH_SECRET = "ebenezer-church-management-system-secret-key-2024"
+    DATABASE_URL = "postgresql://postgres.kxasbeewsniwpmlrhmat:select123%2E123456789797979797979755576575757575@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres"
 
 # Service Worker와 정적 파일 처리를 위한 헤더 설정
 [[headers]]
