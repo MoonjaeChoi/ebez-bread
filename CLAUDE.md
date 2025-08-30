@@ -102,7 +102,7 @@ src/components/
 
 ### Environment Setup
 - Production/staging requires Supabase PostgreSQL setup via `npm run setup:supabase`
-- Authentication test account: `admin@ebenezer.org` / `password`
+- Authentication test account: `admin@gcchurch.kr` / `password`
 
 ## Key Integration Points
 

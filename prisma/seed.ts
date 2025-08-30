@@ -31,7 +31,7 @@ async function main() {
   // 2. 다양한 역할의 사용자들 생성
   const users = [
     { 
-      email: 'admin@ebenezer.org', 
+      email: 'admin@gcchurch.kr', 
       name: '김은혜', 
       phone: '010-1234-5678', 
       role: 'SUPER_ADMIN' as const,

@@ -90,7 +90,7 @@ export default function SignInPage() {
             <div className="relative">
               <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="admin@ebenezer.org"
+                placeholder="admin@gcchurch.kr"
                 type="email"
                 className="pl-9"
                 autoComplete="email"
@@ -246,7 +246,7 @@ export default function SignInPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">이메일:</span>
                   <Badge variant="outline" className="font-mono text-xs">
-                    admin@ebenezer.org
+                    admin@gcchurch.kr
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
