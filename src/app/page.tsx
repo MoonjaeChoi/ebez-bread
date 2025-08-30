@@ -232,7 +232,7 @@ export default function HomePage() {
                 
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                   <CheckCircle className="h-4 w-4 text-success" />
-                  <span>무료로 시작 · 언제든 문의 가능</span>
+                  <span>무료로 시작 · 언제든지 문의 가능합니다</span>
                 </div>
               </div>
             </div>
