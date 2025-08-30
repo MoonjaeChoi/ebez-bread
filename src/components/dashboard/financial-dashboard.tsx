@@ -409,7 +409,7 @@ export function FinancialDashboard({
                 <Link href="/dashboard/accounting/reports">
                   <Button variant="outline" className="w-full justify-start">
                     <BarChart3 className="w-4 h-4 mr-2" />
-                    재무 보고서
+                    재무 보고서.
                   </Button>
                 </Link>
               </CardContent>
