@@ -115,6 +115,15 @@ const DEFAULT_COLUMN_MAPPINGS: Record<DataType, ColumnMapping> = {
     '담당자': 'managerName',
     '담당자명': 'managerName'
   },
+  [DataType.ORGANIZATION_MEMBERSHIPS]: {
+    '조직코드': 'organizationCode',
+    '교인명': 'memberName',
+    '직책': 'roleName',
+    '시작일': 'startDate',
+    '종료일': 'endDate',
+    '활성상태': 'isActive',
+    '비고': 'notes'
+  },
   [DataType.ACCOUNT_CODES]: {
     '계정코드': 'code',
     '코드': 'code',

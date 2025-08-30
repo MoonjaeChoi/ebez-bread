@@ -50,9 +50,9 @@ export async function seedRealOrganizations(churchId: string) {
       { code: 'YC', name: '시냇가 청소년센터', description: '청소년 복지 및 교육' },
     ]
 
-    const createdLevel1 = []
+    const createdLevel1: any[] = []
     for (const org of level1Organizations) {
-      const created = await prisma.organization.create({
+      const created: any = await prisma.organization.create({
         data: {
           code: org.code,
           name: org.name,
@@ -96,9 +96,9 @@ export async function seedRealOrganizations(churchId: string) {
         { code: 'DC-24', name: '청년교구', description: '청년층 전담' },
       ]
 
-      const createdDistricts = []
+      const createdDistricts: any[] = []
       for (const district of districts) {
-        const created = await prisma.organization.create({
+        const created: any = await prisma.organization.create({
           data: {
             code: district.code,
             name: district.name,
@@ -183,9 +183,9 @@ export async function seedRealOrganizations(churchId: string) {
         { code: 'WO-C2', name: '찬양2부', description: '2부 예배 찬양 담당' },
       ]
 
-      const createdWODepts = []
+      const createdWODepts: any[] = []
       for (const dept of woDepartments) {
-        const created = await prisma.organization.create({
+        const created: any = await prisma.organization.create({
           data: {
             code: dept.code,
             name: dept.name,
@@ -210,9 +210,9 @@ export async function seedRealOrganizations(churchId: string) {
           { code: 'WO-C1-IM', name: '임마누엘', description: '임마누엘 찬양팀' },
         ]
 
-        const createdPraise1Teams = []
+        const createdPraise1Teams: any[] = []
         for (const team of praise1Teams) {
-          const created = await prisma.organization.create({
+          const created: any = await prisma.organization.create({
             data: {
               code: team.code,
               name: team.name,
@@ -287,9 +287,9 @@ export async function seedRealOrganizations(churchId: string) {
         { code: 'NE-HP', name: '하늘평화', description: '중고등 교육 부서' },
       ]
 
-      const createdNEDepts = []
+      const createdNEDepts: any[] = []
       for (const dept of neDepartments) {
-        const created = await prisma.organization.create({
+        const created: any = await prisma.organization.create({
           data: {
             code: dept.code,
             name: dept.name,
@@ -313,9 +313,9 @@ export async function seedRealOrganizations(churchId: string) {
           { code: 'NE-HL-BA', name: '아기학교', description: '특별 프로그램' },
         ]
 
-        const createdHLTeams = []
+        const createdHLTeams: any[] = []
         for (const team of hlTeams) {
-          const created = await prisma.organization.create({
+          const created: any = await prisma.organization.create({
             data: {
               code: team.code,
               name: team.name,
@@ -382,9 +382,9 @@ export async function seedRealOrganizations(churchId: string) {
           { code: 'NE-HP-HI', name: '고등부', description: '고등학생 교육' },
         ]
 
-        const createdHPTeams = []
+        const createdHPTeams: any[] = []
         for (const team of hpTeams) {
-          const created = await prisma.organization.create({
+          const created: any = await prisma.organization.create({
             data: {
               code: team.code,
               name: team.name,
@@ -444,9 +444,9 @@ export async function seedRealOrganizations(churchId: string) {
         { code: 'FI-AC2', name: '회계2부', description: '예산관리 및 지출관리' },
       ]
 
-      const createdFIDepts = []
+      const createdFIDepts: any[] = []
       for (const dept of fiDepartments) {
-        const created = await prisma.organization.create({
+        const created: any = await prisma.organization.create({
           data: {
             code: dept.code,
             name: dept.name,
@@ -574,7 +574,7 @@ export async function getDistrictStats(churchId: string) {
     description: district.description,
     mokjangCount: district.children.filter(c => c.code.includes('-MO')).length,
     zoneCount: district.children.filter(c => c.code.includes('-ZO')).length,
-    memberCount: district._count.members,
+    memberCount: 0, // district._count.members,
     expenseReportCount: district._count.expenseReports,
     budgetCount: district._count.budgets,
   }))

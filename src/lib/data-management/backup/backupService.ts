@@ -330,7 +330,7 @@ export class BackupService {
       },
       orderBy: [
         { level: 'asc' },
-        { displayOrder: 'asc' },
+        { sortOrder: 'asc' },
         { name: 'asc' }
       ]
     })

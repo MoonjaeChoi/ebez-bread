@@ -88,6 +88,34 @@ export function DepartmentBudgetAllocation() {
     includeInactive: false
   })
 
+  // 카테고리별 추천 회계 계정코드 필터링 함수
+  const getFilteredAccountCodes = (category: BudgetCategory) => {
+    if (!accountCodes?.accountCodes) return []
+    
+    // 카테고리별 회계계정 코드 매핑 (코드 패턴 기반 필터링)
+    const categoryCodePatterns: Record<BudgetCategory, RegExp[]> = {
+      PERSONNEL: [/^6[0-2]/, /인건비|급여|수당|보험/], // 60x-62x 인건비 관련
+      OPERATIONS: [/^6[3-5]/, /운영|관리|소모품|통신/], // 63x-65x 운영비 관련
+      MANAGEMENT: [/^6[6-7]/, /관리|수수료|수도|전기/], // 66x-67x 관리비 관련
+      FACILITIES: [/^[47]/, /시설|건물|장비|수선/], // 4xx, 7xx 시설/자산 관련
+      EDUCATION: [/교육|연수|도서|교재/, /^6[8-9]/], // 교육 관련 키워드
+      MINISTRY: [/사역|목회|교회/, /^6[8-9]/], // 사역 관련 키워드
+      MISSION: [/선교|후원|기부/, /^6[8-9]/], // 선교 관련 키워드
+      WELFARE: [/복지|장학|구제|지원/, /^6[8-9]/], // 복지 관련 키워드
+      EVENT: [/행사|예배|집회|모임/, /^6[8-9]/], // 행사 관련 키워드
+      OTHER: [/^6/, /기타|잡비/] // 6xx 비용 계정 전반
+    }
+
+    const patterns = categoryCodePatterns[category] || []
+    
+    return accountCodes.accountCodes.filter(account => {
+      // 계정 코드나 이름이 패턴과 매치되는지 확인
+      return patterns.some(pattern => 
+        pattern.test(account.code) || pattern.test(account.name)
+      )
+    })
+  }
+
   const saveBudgetMutation = trpc.budgets.create.useMutation({
     onSuccess: () => {
       toast.success('부서별 예산이 성공적으로 저장되었습니다')
@@ -119,20 +147,20 @@ export function DepartmentBudgetAllocation() {
         if (existingBudget && existingBudget.budgetItems) {
           // 카테고리별 금액 집계
           const categoryAmounts = existingBudget.budgetItems.reduce((acc: Record<BudgetCategory, number>, item: any) => {
-            acc[item.category] = (acc[item.category] || 0) + Number(item.amount)
+            acc[item.category as BudgetCategory] = (acc[item.category as BudgetCategory] || 0) + Number(item.amount)
             return acc
           }, {} as Record<BudgetCategory, number>)
 
           const budgetItems = Object.entries(categoryAmounts).map(([category, amount]) => ({
             category: category as BudgetCategory,
-            amount: amount as number,
-            percentage: existingBudget.totalAmount > 0 ? (amount / existingBudget.totalAmount) * 100 : 0
+            amount: Number(amount),
+            percentage: Number(existingBudget.totalAmount) > 0 ? (Number(amount) / Number(existingBudget.totalAmount)) * 100 : 0
           }))
 
           return {
             departmentId: dept.id,
             departmentName: dept.name,
-            totalAllocated: existingBudget.totalAmount,
+            totalAllocated: Number(existingBudget.totalAmount),
             budgetItems
           }
         }
@@ -201,21 +229,37 @@ export function DepartmentBudgetAllocation() {
     
     setAllocations(prev => prev.map(dept => {
       if (dept.departmentId === departmentId) {
-        const updatedItems = dept.budgetItems.map(item => {
-          if (item.category === category) {
-            return {
-              ...item,
-              accountCodeId,
-              accountCode: selectedAccount?.code,
-              accountName: selectedAccount?.name
-            }
+        const existingItemIndex = dept.budgetItems.findIndex(item => item.category === category)
+        
+        if (existingItemIndex >= 0) {
+          // 기존 항목이 있는 경우 업데이트
+          const updatedItems = [...dept.budgetItems]
+          updatedItems[existingItemIndex] = {
+            ...updatedItems[existingItemIndex],
+            accountCodeId,
+            accountCode: selectedAccount?.code,
+            accountName: selectedAccount?.name
           }
-          return item
-        })
-
-        return {
-          ...dept,
-          budgetItems: updatedItems
+          
+          return {
+            ...dept,
+            budgetItems: updatedItems
+          }
+        } else {
+          // 기존 항목이 없는 경우 새로 생성 (금액은 0으로 설정)
+          const newItem = {
+            category,
+            amount: 0,
+            percentage: 0,
+            accountCodeId,
+            accountCode: selectedAccount?.code,
+            accountName: selectedAccount?.name
+          }
+          
+          return {
+            ...dept,
+            budgetItems: [...dept.budgetItems, newItem]
+          }
         }
       }
       return dept
@@ -224,8 +268,20 @@ export function DepartmentBudgetAllocation() {
 
   const handleSaveDepartmentBudget = async (departmentId: string) => {
     const allocation = allocations.find(a => a.departmentId === departmentId)
-    if (!allocation || allocation.budgetItems.length === 0) {
-      toast.error('예산 항목을 추가해주세요')
+    if (!allocation) {
+      toast.error('부서 정보를 찾을 수 없습니다')
+      return
+    }
+
+    // 금액이 0보다 큰 예산 항목만 확인
+    const validBudgetItems = allocation.budgetItems.filter(item => item.amount > 0)
+    if (validBudgetItems.length === 0) {
+      toast.error('예산 금액을 입력해주세요')
+      return
+    }
+
+    if (allocation.totalAllocated <= 0) {
+      toast.error('총 예산 금액이 0보다 커야 합니다')
       return
     }
 
@@ -245,13 +301,15 @@ export function DepartmentBudgetAllocation() {
         totalAmount: allocation.totalAllocated,
         departmentId: departmentId,
         description: `${selectedYear}년 ${department.name} 부서별 예산 배정`,
-        budgetItems: allocation.budgetItems.map(item => ({
-          name: getCategoryName(item.category),
-          code: item.accountCode || `${departmentId}_${item.category}`,
-          amount: item.amount,
-          category: item.category,
-          description: `${getCategoryName(item.category)} 예산 ${item.accountName ? `(${item.accountName})` : ''}`
-        }))
+        budgetItems: allocation.budgetItems
+          .filter(item => item.amount > 0) // 금액이 0보다 큰 항목만 포함
+          .map(item => ({
+            name: getCategoryName(item.category),
+            code: item.accountCode || `${departmentId}_${item.category}`,
+            amount: item.amount,
+            category: item.category,
+            description: `${getCategoryName(item.category)} 예산 ${item.accountName ? `(${item.accountName})` : ''}`
+          }))
       }
 
       if (existingBudget) {
@@ -270,7 +328,18 @@ export function DepartmentBudgetAllocation() {
       }
     } catch (error: any) {
       console.error('예산 저장 오류:', error)
-      toast.error(`예산 저장 실패: ${error?.message || '알 수 없는 오류가 발생했습니다'}`)
+      
+      // tRPC 에러 처리
+      let errorMessage = '알 수 없는 오류가 발생했습니다'
+      if (error?.message) {
+        errorMessage = error.message
+      } else if (error?.data?.message) {
+        errorMessage = error.data.message
+      } else if (error?.shape?.message) {
+        errorMessage = error.shape.message
+      }
+      
+      toast.error(`예산 저장 실패: ${errorMessage}`)
     } finally {
       setIsLoading(false)
     }
@@ -281,8 +350,9 @@ export function DepartmentBudgetAllocation() {
       PERSONNEL: '인건비',
       OPERATIONS: '운영비',
       MANAGEMENT: '관리비',
-      FACILITY: '시설비',
+      FACILITIES: '시설비',
       EDUCATION: '교육비',
+      MINISTRY: '사역비',
       MISSION: '선교비',
       WELFARE: '복지비',
       EVENT: '행사비',
@@ -296,8 +366,9 @@ export function DepartmentBudgetAllocation() {
       PERSONNEL: 'bg-blue-100 text-blue-800',
       OPERATIONS: 'bg-green-100 text-green-800',
       MANAGEMENT: 'bg-yellow-100 text-yellow-800',
-      FACILITY: 'bg-purple-100 text-purple-800',
+      FACILITIES: 'bg-purple-100 text-purple-800',
       EDUCATION: 'bg-indigo-100 text-indigo-800',
+      MINISTRY: 'bg-cyan-100 text-cyan-800',
       MISSION: 'bg-orange-100 text-orange-800',
       WELFARE: 'bg-pink-100 text-pink-800',
       EVENT: 'bg-red-100 text-red-800',
@@ -470,20 +541,35 @@ export function DepartmentBudgetAllocation() {
                             />
                           </div>
                         </div>
+                        {/* 선택된 회계계정 표시 (금액이 0이어도 표시) */}
+                        {existingItem?.accountCode && existingItem.amount === 0 && (
+                          <div className="ml-[5.5rem] text-xs text-blue-600 flex items-center gap-1">
+                            <span>선택된 계정:</span>
+                            <span className="font-mono">{existingItem.accountCode}</span>
+                            <span>{existingItem.accountName}</span>
+                          </div>
+                        )}
                         <div className="ml-[5.5rem]">
                           <Select 
                             value={existingItem?.accountCodeId || ''} 
-                            onValueChange={(value) => handleAccountCodeChange(
-                              allocation.departmentId,
-                              category,
-                              value
-                            )}
+                            onValueChange={(value) => {
+                              if (value) {
+                                handleAccountCodeChange(
+                                  allocation.departmentId,
+                                  category,
+                                  value
+                                )
+                              }
+                            }}
                           >
                             <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="회계 계정 선택" />
+                              <SelectValue 
+                                placeholder="회계 계정 선택"
+                                className="text-left"
+                              />
                             </SelectTrigger>
                             <SelectContent>
-                              {accountCodes?.accountCodes?.map((account) => (
+                              {getFilteredAccountCodes(category).map((account) => (
                                 <SelectItem key={account.id} value={account.id}>
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs text-muted-foreground">{account.code}</span>
@@ -491,6 +577,11 @@ export function DepartmentBudgetAllocation() {
                                   </div>
                                 </SelectItem>
                               ))}
+                              {getFilteredAccountCodes(category).length === 0 && (
+                                <div className="px-2 py-1 text-xs text-muted-foreground">
+                                  해당 카테고리에 적합한 회계 계정이 없습니다.
+                                </div>
+                              )}
                             </SelectContent>
                           </Select>
                         </div>

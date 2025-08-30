@@ -435,10 +435,6 @@ export class BackupManager {
       상위조직코드: org.parent?.code || '',
       설명: org.description || '',
       활성상태: org.isActive ? '예' : '아니오',
-      연락처: org.phone || '',
-      이메일: org.email || '',
-      주소: org.address || '',
-      담당자: org.managerName || '',
       정렬순서: org.sortOrder,
       생성일: org.createdAt.toISOString().split('T')[0],
       수정일: org.updatedAt.toISOString().split('T')[0]
@@ -676,69 +672,4 @@ export class BackupManager {
     }
   }
 
-  // 특정 데이터 타입 내보내기
-  async exportDataByType(dataType: DataType, options: ExportOptions): Promise<BackupResult> {
-    try {
-      let data: any[] = []
-      let sheetName = ''
-
-      switch (dataType) {
-        case DataType.MEMBERS:
-          data = await this.exportMemberData(options.dateRange)
-          sheetName = '교인정보'
-          break
-        case DataType.OFFERINGS:
-          data = await this.exportOfferingData(options.dateRange)
-          sheetName = '헌금내역'
-          break
-        case DataType.ATTENDANCES:
-          data = await this.exportAttendanceData(options.dateRange)
-          sheetName = '출석현황'
-          break
-        case DataType.VISITATIONS:
-          data = await this.exportVisitationData(options.dateRange)
-          sheetName = '심방기록'
-          break
-        case DataType.EXPENSE_REPORTS:
-          data = await this.exportExpenseReportData(options.dateRange)
-          sheetName = '지출결의서'
-          break
-        case DataType.ORGANIZATIONS:
-          data = await this.exportOrganizationData(options.includeInactive)
-          sheetName = '조직정보'
-          break
-        case DataType.ORGANIZATION_MEMBERSHIPS:
-          data = await this.exportOrganizationMembershipData(options.includeInactive)
-          sheetName = '조직구성원'
-          break
-        case DataType.ACCOUNT_CODES:
-          data = await this.exportAccountCodeData(options.includeInactive)
-          sheetName = '회계계정코드'
-          break
-        default:
-          throw new Error(`지원하지 않는 데이터 타입: ${dataType}`)
-      }
-
-      // Excel 파일로 내보내기
-      const result = await exportToExcel(data, {
-        filename: options.filename || `${sheetName}_${new Date().toISOString().split('T')[0]}.xlsx`,
-        sheetName
-      })
-
-      return {
-        success: true,
-        filename: result.filename,
-        data: result.data,
-        includedTables: [sheetName],
-        recordCounts: { [dataType]: data.length }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : '데이터 내보내기 중 오류가 발생했습니다',
-        includedTables: [],
-        recordCounts: {}
-      }
-    }
-  }
 }

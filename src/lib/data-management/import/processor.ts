@@ -844,11 +844,7 @@ export class DataProcessor {
                 level: processedData.level,
                 parentId,
                 description: processedData.description,
-                isActive: processedData.isActive,
-                phone: processedData.phone,
-                email: processedData.email,
-                address: processedData.address,
-                managerName: processedData.managerName
+                isActive: processedData.isActive
               }
             })
           } else {
@@ -861,11 +857,7 @@ export class DataProcessor {
                 level: processedData.level,
                 parentId,
                 description: processedData.description,
-                isActive: processedData.isActive !== false,
-                phone: processedData.phone,
-                email: processedData.email,
-                address: processedData.address,
-                managerName: processedData.managerName
+                isActive: processedData.isActive !== false
               }
             })
           }
@@ -879,11 +871,7 @@ export class DataProcessor {
               level: processedData.level,
               parentId,
               description: processedData.description,
-              isActive: processedData.isActive !== false,
-              phone: processedData.phone,
-              email: processedData.email,
-              address: processedData.address,
-              managerName: processedData.managerName
+              isActive: processedData.isActive !== false
             }
           })
         }

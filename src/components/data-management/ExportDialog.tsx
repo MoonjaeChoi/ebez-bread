@@ -87,8 +87,8 @@ export function ExportDialog({ children, defaultDataType }: ExportDialogProps) {
         format: fileFormat,
         ...(dateRange.from && dateRange.to && {
           dateRange: {
-            start: dateRange.from,
-            end: dateRange.to
+            start: dateRange.from.toISOString(),
+            end: dateRange.to.toISOString()
           }
         }),
         includeInactive,

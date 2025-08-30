@@ -15,9 +15,9 @@ export async function seedOrganizations(churchId: string) {
       { code: 'AD', name: '행정위원회', description: '행정 및 관리 업무' },
     ]
 
-    const createdCommittees = []
+    const createdCommittees: any[] = []
     for (const committee of committees) {
-      const created = await prisma.organization.create({
+      const created: any = await prisma.organization.create({
         data: {
           code: committee.code,
           name: committee.name,
@@ -41,9 +41,9 @@ export async function seedOrganizations(churchId: string) {
         { code: 'PW-US', name: '어셔부', description: '예배 안내 및 질서 유지' },
       ]
 
-      const createdDepartments = []
+      const createdDepartments: any[] = []
       for (const dept of departments) {
-        const created = await prisma.organization.create({
+        const created: any = await prisma.organization.create({
           data: {
             code: dept.code,
             name: dept.name,
@@ -67,9 +67,9 @@ export async function seedOrganizations(churchId: string) {
           { code: 'PW-C1-GO', name: '복음성가대', description: '복음성가 전문팀' },
         ]
 
-        const createdTeams = []
+        const createdTeams: any[] = []
         for (const team of teams) {
-          const created = await prisma.organization.create({
+          const created: any = await prisma.organization.create({
             data: {
               code: team.code,
               name: team.name,

@@ -192,15 +192,6 @@ export const organizationsRouter = router({
               email: true,
             }
           },
-          members: {
-            take: 10,
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-            }
-          },
           _count: {
             select: {
               children: true,
@@ -229,10 +220,10 @@ export const organizationsRouter = router({
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const path = []
-      let currentId = input.id
+      let currentId: string | null = input.id
 
       while (currentId) {
-        const organization = await ctx.prisma.organization.findFirst({
+        const organization: any = await ctx.prisma.organization.findFirst({
           where: {
             id: currentId,
             churchId: ctx.session.user.churchId,
