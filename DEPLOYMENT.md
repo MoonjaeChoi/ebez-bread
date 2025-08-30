@@ -127,7 +127,7 @@ npx prisma db seed
 ### 5.1 헬스체크
 배포된 애플리케이션의 상태 확인:
 ```
-GET https://your-app.vercel.app/healthz
+GET https://yourapp.vercel.app/healthz
 ```
 
 ### 5.2 기본 기능 테스트

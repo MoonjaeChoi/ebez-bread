@@ -85,7 +85,7 @@ export default function SignInPage() {
       name="email"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>이메일 주소</FormLabel>
+          <FormLabel>이메일주소</FormLabel>
           <FormControl>
             <div className="relative">
               <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
