@@ -214,27 +214,13 @@ export default function HomePage() {
         <section className="py-20">
           <div className="container mx-auto px-4 text-center">
             <div className="mx-auto max-w-3xl">
-              <h2 className="mb-6 text-3xl font-bold text-foreground sm:text-4xl">
-                지금 시작하세요
-              </h2>
-              <p className="mb-8 text-lg text-muted-foreground">
-                {process.env.NEXT_PUBLIC_APP_NAME || '에벤에셀(eVeNeZeR) 교회 관리 시스템'}와 함께 더 효율적이고 체계적인 교회 운영을 경험해보세요
-              </p>
-              
-              <div className="flex flex-col items-center gap-6">
-                <Button 
-                  size="lg" 
-                  onClick={handleStartClick}
-                  className="text-base shadow-lg"
-                >
-                  지금 로그인하기
-                </Button>
-                
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <CheckCircle className="h-4 w-4 text-success" />
-                  <span>무료로 시작 · 언제든지 문의 가능합니다</span>
-                </div>
-              </div>
+              <Button 
+                size="lg" 
+                onClick={handleStartClick}
+                className="text-base shadow-lg"
+              >
+                지금 로그인하기
+              </Button>
             </div>
           </div>
         </section>
