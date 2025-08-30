@@ -2,9 +2,9 @@ const { withSentryConfig } = require('@sentry/nextjs')
 
 const withPWA = require('next-pwa')({
   dest: 'public',
-  disable: true,
-  register: false,
-  skipWaiting: false,
+  disable: process.env.NODE_ENV === 'development',
+  register: true,
+  skipWaiting: true,
   runtimeCaching: [
     {
       urlPattern: /^https?.*/, // Cache all HTTP(S) requests
