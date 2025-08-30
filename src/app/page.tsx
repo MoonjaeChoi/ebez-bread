@@ -103,11 +103,11 @@ export default function HomePage() {
             <div className="mx-auto max-w-4xl">
               <Badge variant="secondary" className="mb-6 px-4 py-2 text-sm">
                 <Star className="mr-2 h-4 w-4" />
-                에벤에셀 교회 관리 시스템
+                {process.env.NEXT_PUBLIC_APP_NAME || '에벤에셀(eVeNeZeR) 교회 관리 시스템'}
               </Badge>
               
               <h1 className="mb-6 text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
-                에벤에셀 교회
+                {process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}
               </h1>
               
               <p className="mx-auto mb-8 max-w-2xl text-xl text-muted-foreground">
@@ -218,7 +218,7 @@ export default function HomePage() {
                 지금 시작하세요
               </h2>
               <p className="mb-8 text-lg text-muted-foreground">
-                에벤에셀 교회와 함께 더 효율적이고 체계적인 교회 운영을 경험해보세요
+                {process.env.NEXT_PUBLIC_APP_NAME || '에벤에셀(eVeNeZeR) 교회 관리 시스템'}와 함께 더 효율적이고 체계적인 교회 운영을 경험해보세요
               </p>
               
               <div className="flex flex-col items-center gap-6">
@@ -249,13 +249,13 @@ export default function HomePage() {
                 <div className="rounded-md bg-primary p-2">
                   <Users className="h-6 w-6 text-primary-foreground" />
                 </div>
-                <span className="text-lg font-bold">에벤에셀 교회</span>
+                <span className="text-lg font-bold">{process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}</span>
               </div>
               <p className="mb-4 text-sm text-muted-foreground">
-                교회 교적 및 재정 관리를 위한 통합 플랫폼
+                {process.env.NEXT_PUBLIC_APP_NAME || '에벤에셀(eVeNeZeR) 교회 관리 시스템'}
               </p>
               <p className="text-xs text-muted-foreground">
-                © 2024 에벤에셀 교회. All rights reserved.
+                © 2024 {process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}. All rights reserved.
               </p>
             </div>
           </div>

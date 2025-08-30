@@ -1,6 +1,6 @@
 # 알림 시스템 가이드
 
-에벤에셀 교회 관리 시스템의 이메일/SMS 알림 시스템입니다.
+에벤에셀(eVeNeZeR) 교회 관리 시스템의 이메일/SMS 알림 시스템입니다.
 
 ## 주요 기능
 
@@ -34,7 +34,7 @@ SMTP_HOST="smtp.gmail.com"
 SMTP_PORT="587"
 SMTP_USER="your-email@gmail.com"
 SMTP_PASSWORD="your-app-password"
-SMTP_FROM="에벤에셀 교회 <noreply@ebenezer.kr>"
+SMTP_FROM="과천 교회 <noreply@ebenezer.kr>"
 
 # SMS Service (Twilio)
 TWILIO_ACCOUNT_SID="your-twilio-account-sid"

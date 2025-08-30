@@ -269,7 +269,7 @@ export default function DashboardPage() {
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-foreground mb-2">시스템 현황</h2>
             <p className="text-muted-foreground">
-              에벤에셀 교회 관리 시스템의 개발 진행 상황
+              에벤에셀(eVeNeZeR) 교회 관리 시스템의 개발 진행 상황
             </p>
           </div>
 

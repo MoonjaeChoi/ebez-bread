@@ -7,7 +7,7 @@ export const notificationConfig: NotificationConfig = {
     port: parseInt(getEnvVar('SMTP_PORT', '587')),
     user: getEnvVar('SMTP_USER', ''),
     password: getEnvVar('SMTP_PASSWORD', ''),
-    from: getEnvVar('SMTP_FROM', '에벤에셀 교회 <noreply@ebenezer.kr>'),
+    from: getEnvVar('SMTP_FROM', '과천 교회 <noreply@ebenezer.kr>'),
   },
   sms: {
     accountSid: getEnvVar('TWILIO_ACCOUNT_SID', ''),

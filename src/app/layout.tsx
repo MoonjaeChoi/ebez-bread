@@ -9,7 +9,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: '에벤에셀 교회 관리 시스템',
+  title: `${process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'} 교회 관리 시스템`,
   description: '교회 교적 및 재정 관리를 위한 통합 플랫폼',
   ...(process.env.NODE_ENV === 'production' && { manifest: '/manifest.json' }),
   keywords: [
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   ],
   authors: [
     {
-      name: '에벤에셀 교회',
+      name: `${process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'} 교회`,
     },
   ],
   icons: {
@@ -51,7 +51,7 @@ export default function RootLayout({
             <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
             <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-            <meta name="apple-mobile-web-app-title" content="에벤에셀 교회" />
+            <meta name="apple-mobile-web-app-title" content={`${process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'} 교회`} />
             <meta name="mobile-web-app-capable" content="yes" />
             <meta name="msapplication-TileColor" content="#2563eb" />
             <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />

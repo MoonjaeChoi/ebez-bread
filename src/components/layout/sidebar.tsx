@@ -145,7 +145,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
                 <Home className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-semibold">에벤에셀 교회</span>
+                <span className="text-sm font-semibold">{process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}</span>
                 <span className="text-xs text-muted-foreground">관리 시스템</span>
               </div>
             </div>
@@ -235,7 +235,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           <div className="border-t p-4">
             <div className="text-center">
               <p className="text-xs text-muted-foreground">
-                © 2024 에벤에셀 교회
+                © 2024 {process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}
               </p>
               <p className="text-xs text-muted-foreground">
                 Church Management System

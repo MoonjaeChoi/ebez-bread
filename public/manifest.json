@@ -1,7 +1,7 @@
 {
-  "name": "에벤에셀 교회 관리 시스템",
-  "short_name": "에벤에셀 교회",
-  "description": "에벤에셀 교회를 위한 통합 관리 시스템",
+  "name": "에벤에셀(eVeNeZeR) 교회 관리 시스템",
+  "short_name": "과천 교회",
+  "description": "과천 교회를 위한 통합 관리 시스템",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

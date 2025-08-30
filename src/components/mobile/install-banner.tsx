@@ -86,7 +86,7 @@ export function InstallBanner() {
         </div>
         
         <p className="text-sm text-gray-700 mb-3">
-          에벤에셀 교회 앱을 홈화면에 설치하여 더 빠르고 편리하게 이용하세요.
+          {process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'} 앱을 홈화면에 설치하여 더 빠르고 편리하게 이용하세요.
         </p>
         
         <div className="flex space-x-2">

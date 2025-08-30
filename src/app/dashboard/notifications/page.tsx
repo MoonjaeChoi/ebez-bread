@@ -10,7 +10,7 @@ import { authOptions } from '@/lib/auth'
 import { canApproveExpenses } from '@/lib/permissions'
 
 export const metadata: Metadata = {
-  title: '알림 설정 | 에벤에셀 교회 관리 시스템',
+  title: '알림 설정 | 에벤에셀(eVeNeZeR) 교회 관리 시스템',
   description: '알림 설정을 관리하고 알림 기록을 확인합니다.',
 }
 

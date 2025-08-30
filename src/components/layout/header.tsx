@@ -92,7 +92,7 @@ export function Header({ className, onMenuClick, showMenuButton = false }: Heade
               <Home className="h-5 w-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col">
-              <span className="text-lg font-bold">에벤에셀 교회</span>
+              <span className="text-lg font-bold">{process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}</span>
               {isDashboard && (
                 <span className="text-sm text-muted-foreground">관리 시스템</span>
               )}
@@ -106,7 +106,7 @@ export function Header({ className, onMenuClick, showMenuButton = false }: Heade
             <div className="rounded-md bg-primary p-1.5">
               <Home className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold">에벤에셀 교회</span>
+            <span className="font-semibold">{process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}</span>
           </Link>
         </div>
 

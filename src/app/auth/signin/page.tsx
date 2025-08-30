@@ -159,7 +159,7 @@ export default function SignInPage() {
             <div className="rounded-md bg-primary p-1.5">
               <Home className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold">에벤에셀 교회</span>
+            <span className="text-lg font-bold">{process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}</span>
           </Link>
           
           <Button variant="ghost" asChild disabled={isLoading}>
@@ -181,7 +181,7 @@ export default function SignInPage() {
             </div>
             <h1 className="text-2xl font-bold text-foreground">관리 시스템 로그인</h1>
             <p className="mt-2 text-muted-foreground">
-              에벤에셀 교회 관리 시스템에 로그인하세요
+              에벤에셀(eVeNeZeR) 교회 관리 시스템에 로그인하세요
             </p>
           </div>
 

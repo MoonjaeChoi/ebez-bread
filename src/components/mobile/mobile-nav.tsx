@@ -111,7 +111,7 @@ export function MobileNav() {
             <div className="flex items-center space-x-2">
               <Church className="h-8 w-8 text-blue-600" />
               <div>
-                <SheetTitle className="text-left">에벤에셀 교회</SheetTitle>
+                <SheetTitle className="text-left">{process.env.NEXT_PUBLIC_CHURCH_NAME || '에벤에셀'}</SheetTitle>
                 <p className="text-sm text-muted-foreground">관리 시스템</p>
               </div>
             </div>
