@@ -177,8 +177,8 @@ describe('Budgets Router', () => {
         description: '신규 예산 계획',
         year: 2024,
         totalAmount: 10000000,
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-12-31'),
+        startDate: new Date('2024-01-01').toISOString(),
+        endDate: new Date('2024-12-31').toISOString(),
         departmentId: 'dept-1',
         budgetItems: [
           {
@@ -252,8 +252,8 @@ describe('Budgets Router', () => {
         name: '잘못된 예산',
         year: 2024,
         totalAmount: 5000000, // Doesn't match sum of items (3000000)
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-12-31'),
+        startDate: new Date('2024-01-01').toISOString(),
+        endDate: new Date('2024-12-31').toISOString(),
         departmentId: 'dept-1',
         budgetItems: [
           {
@@ -284,8 +284,8 @@ describe('Budgets Router', () => {
         name: '예산',
         year: 2024,
         totalAmount: 1000000,
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-12-31'),
+        startDate: new Date('2024-01-01').toISOString(),
+        endDate: new Date('2024-12-31').toISOString(),
         departmentId: 'non-existent-dept',
         budgetItems: [
           {

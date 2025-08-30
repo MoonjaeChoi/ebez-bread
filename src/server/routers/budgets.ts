@@ -17,8 +17,20 @@ const budgetCreateSchema = z.object({
   year: z.number().min(2020).max(2050, '올바른 연도를 입력해주세요'),
   quarter: z.number().min(1).max(4).optional(),
   month: z.number().min(1).max(12).optional(),
-  startDate: z.date({ errorMap: () => ({ message: '시작일을 입력해주세요' }) }),
-  endDate: z.date({ errorMap: () => ({ message: '종료일을 입력해주세요' }) }),
+  startDate: z.string().transform((val) => {
+    const date = new Date(val);
+    if (isNaN(date.getTime())) {
+      throw new Error('시작일을 입력해주세요');
+    }
+    return date;
+  }),
+  endDate: z.string().transform((val) => {
+    const date = new Date(val);
+    if (isNaN(date.getTime())) {
+      throw new Error('종료일을 입력해주세요');
+    }
+    return date;
+  }),
   totalAmount: z.number().min(0, '총 예산액은 0 이상이어야 합니다'),
   departmentId: z.string().min(1, '부서를 선택해주세요'),
   description: z.string().max(1000, '설명은 1000자 이내로 입력해주세요').optional(),
@@ -42,8 +54,8 @@ const budgetUpdateSchema = z.object({
   month: z.number().min(1).max(12).optional(),
   totalAmount: z.number().min(0, '예산 금액은 0 이상이어야 합니다').optional(),
   description: z.string().max(500, '설명은 500자 이내로 입력해주세요').optional(),
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
+  startDate: z.string().transform((val) => new Date(val)).optional(),
+  endDate: z.string().transform((val) => new Date(val)).optional(),
   departmentId: z.string().optional(),
   budgetItems: z.array(budgetItemSchema).optional(),
 })

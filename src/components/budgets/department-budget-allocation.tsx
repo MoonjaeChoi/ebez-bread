@@ -296,8 +296,8 @@ export function DepartmentBudgetAllocation() {
       const budgetData = {
         name: `${department.name} ${selectedYear}년 예산`,
         year: selectedYear,
-        startDate: new Date(selectedYear, 0, 1),
-        endDate: new Date(selectedYear, 11, 31),
+        startDate: new Date(selectedYear, 0, 1).toISOString(),
+        endDate: new Date(selectedYear, 11, 31).toISOString(),
         totalAmount: allocation.totalAllocated,
         departmentId: departmentId,
         description: `${selectedYear}년 ${department.name} 부서별 예산 배정`,

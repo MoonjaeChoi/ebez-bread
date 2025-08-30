@@ -72,8 +72,8 @@ describe('Accounting System Integration Tests', () => {
         description: '교회 연간 운영예산',
         year: 2024,
         totalAmount: 10000000,
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-12-31'),
+        startDate: new Date('2024-01-01').toISOString(),
+        endDate: new Date('2024-12-31').toISOString(),
         departmentId: department.id,
         budgetItems: [
           {

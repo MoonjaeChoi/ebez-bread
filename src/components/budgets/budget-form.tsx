@@ -196,6 +196,8 @@ export function BudgetForm({ budgetId, onSuccess, onCancel }: BudgetFormProps) {
   const onSubmit = (data: BudgetFormData) => {
     const cleanData = {
       ...data,
+      startDate: data.startDate.toISOString(),
+      endDate: data.endDate.toISOString(),
       description: data.description || undefined,
       quarter: data.quarter || undefined,
       month: data.month || undefined,
