@@ -9,18 +9,18 @@ async function main() {
 
   // 1. 교회 생성 또는 가져오기
   let church = await prisma.church.findFirst({
-    where: { name: '에벤에셀교회' }
+    where: { name: '과천교회' }
   })
 
   if (!church) {
     church = await prisma.church.create({
       data: {
-        name: '에벤에셀교회',
-        address: '서울특별시 종로구 세종대로 175 (세종문화회관 맞은편)',
-        phone: '02-1588-1234',
-        email: 'info@ebenezer.org',
-        pastorName: '김은혜',
-        description: '하나님의 은혜로 세상을 변화시키는 교회\n\n주일예배: 오전 9시, 11시, 오후 2시\n수요예배: 오후 7시 30분\n새벽예배: 매일 오전 5시 30분\n\n설립년도: 1985년\n교인수: 약 3,500명',
+        name: '과천교회',
+        address: '경기도 과천시 관악산길 103 과천교회',
+        phone: '02-502-2357',
+        email: 'info@gcchurch.kr',
+        pastorName: '주현신',
+        description: '과천에 위치한 하나님의 은혜와 사랑을 전하는 교회\n\n주일예배: 오전 9시, 11시\n수요예배: 오후 7시 30분\n새벽예배: 매일 오전 5시 30분\n\n담임목사: 주현신 목사\n주소: 경기도 과천시 관악산길 103\n연락처: 02-502-2357',
       },
     })
     console.log('✅ Church created:', church.name)
