@@ -3,6 +3,7 @@ import { router, protectedProcedure, managerProcedure, adminProcedure } from '@/
 import { ReportStatus, WorkflowStatus, ApprovalStatus, UserRole } from '@prisma/client'
 import { canApproveExpenses } from '@/lib/permissions'
 import { logger } from '@/lib/logger'
+import { logger as safeLogger } from '@/lib/safe-logger'
 import { trackDatabaseOperation, performanceMonitor } from '@/lib/monitoring/performance'
 import { TRPCError } from '@trpc/server'
 
@@ -214,31 +215,39 @@ export const expenseReportsRouter = router({
       limit: z.number().default(10),
     }))
     .query(async ({ ctx, input }) => {
-      // Check if user can approve expenses
-      if (!canApproveExpenses(ctx.session.user.role as any)) {
-        return { expenseReports: [] }
-      }
+      try {
+        // Check if user can approve expenses
+        if (!canApproveExpenses(ctx.session.user.role as any)) {
+          return { expenseReports: [] }
+        }
 
-      const expenseReports = await ctx.prisma.expenseReport.findMany({
-        where: {
-          churchId: ctx.session.user.churchId,
-          status: 'PENDING',
-        },
-        take: input.limit,
-        include: {
-          requester: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
+        const expenseReports = await ctx.prisma.expenseReport.findMany({
+          where: {
+            churchId: ctx.session.user.churchId,
+            status: 'PENDING',
+          },
+          take: input.limit,
+          include: {
+            requester: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+              },
             },
           },
-        },
-        orderBy: { requestDate: 'asc' }, // Oldest first for approvals
-      })
+          orderBy: { requestDate: 'asc' }, // Oldest first for approvals
+        })
 
-      return { expenseReports }
+        return { expenseReports }
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch pending approvals',
+          cause: error
+        })
+      }
     }),
 
   // Create new expense report
@@ -319,7 +328,7 @@ export const expenseReportsRouter = router({
         //   requesterEmail: expenseReport.requester.email || undefined,
         // })
       } catch (error) {
-        console.error('Failed to send expense approval notification:', error)
+        safeLogger.error('Failed to send expense approval notification:', error)
         // Don't fail the entire operation if notification fails
       }
 
@@ -433,7 +442,7 @@ export const expenseReportsRouter = router({
         //   rejectionReason
         // )
       } catch (error) {
-        console.error('Failed to send expense approval result notification:', error)
+        safeLogger.error('Failed to send expense approval result notification:', error)
         // Don't fail the entire operation if notification fails
       }
 
@@ -1072,34 +1081,42 @@ export const expenseReportsRouter = router({
   // 결재 담당자 후보 목록 조회
   getApprovalCandidates: protectedProcedure
     .query(async ({ ctx }) => {
-      const candidates = await ctx.prisma.user.findMany({
-        where: {
-          churchId: ctx.session.user.churchId,
-          isActive: true,
-          role: {
-            in: ['DEPARTMENT_ACCOUNTANT', 'DEPARTMENT_HEAD', 'COMMITTEE_CHAIR', 'FINANCIAL_MANAGER', 'SUPER_ADMIN']
-          }
-        },
-        select: {
-          id: true,
-          name: true,
-          role: true,
-          email: true,
-        },
-        orderBy: [
-          { role: 'asc' },
-          { name: 'asc' }
-        ]
-      })
+      try {
+        const candidates = await ctx.prisma.user.findMany({
+          where: {
+            churchId: ctx.session.user.churchId,
+            isActive: true,
+            role: {
+              in: ['DEPARTMENT_ACCOUNTANT', 'DEPARTMENT_HEAD', 'COMMITTEE_CHAIR', 'FINANCIAL_MANAGER', 'SUPER_ADMIN']
+            }
+          },
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            email: true,
+          },
+          orderBy: [
+            { role: 'asc' },
+            { name: 'asc' }
+          ]
+        })
 
-      // 역할별로 그룹화
-      const groupedCandidates = {
-        step1: candidates.filter(u => ['DEPARTMENT_ACCOUNTANT', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
-        step2: candidates.filter(u => ['DEPARTMENT_HEAD'].includes(u.role)), // 부서장만 필터링
-        step3: candidates.filter(u => ['COMMITTEE_CHAIR'].includes(u.role)), // 교구장(위원장)만 필터링
+        // 역할별로 그룹화
+        const groupedCandidates = {
+          step1: candidates.filter(u => ['DEPARTMENT_ACCOUNTANT', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
+          step2: candidates.filter(u => ['DEPARTMENT_HEAD'].includes(u.role)), // 부서장만 필터링
+          step3: candidates.filter(u => ['COMMITTEE_CHAIR'].includes(u.role)), // 교구장(위원장)만 필터링
+        }
+
+        return groupedCandidates
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch approval candidates',
+          cause: error
+        })
       }
-
-      return groupedCandidates
     }),
 
   // 내가 승인해야 할 지출결의서 목록

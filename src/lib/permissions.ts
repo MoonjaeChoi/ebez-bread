@@ -135,6 +135,9 @@ export function canManageFinances(userRole: UserRole): boolean {
 }
 
 export function canApproveExpenses(userRole: UserRole): boolean {
+  if (!userRole) {
+    return false
+  }
   return ['SUPER_ADMIN', 'FINANCIAL_MANAGER', 'COMMITTEE_CHAIR'].includes(userRole)
 }
 
