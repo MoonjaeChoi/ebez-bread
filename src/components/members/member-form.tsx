@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { trpc } from '@/lib/trpc/client'
+import { logger } from '@/lib/safe-logger'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -132,7 +133,8 @@ export function MemberForm({ isOpen, onClose, memberId, onSuccess }: MemberFormP
       onClose()
       onSuccess?.()
     } catch (error: any) {
-      console.error('Failed to save member:', error)
+      // 안전한 로깅
+      logger.error('Failed to save member:', error)
       const errorMessage = error?.message || '교인 정보 저장에 실패했습니다. 데이터베이스 연결을 확인해주세요.'
       setError(errorMessage)
     } finally {

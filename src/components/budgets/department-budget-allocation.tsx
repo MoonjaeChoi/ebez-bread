@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { trpc } from '@/lib/trpc/client'
+import { logger } from '@/lib/safe-logger'
 import { BudgetCategory } from '@prisma/client'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -338,7 +339,8 @@ export function DepartmentBudgetAllocation() {
         await saveBudgetMutation.mutateAsync(budgetData)
       }
     } catch (error: any) {
-      console.error('예산 저장 오류:', error)
+      // 안전한 로깅
+      logger.error('예산 저장 오류:', error)
       
       // tRPC 에러 처리
       let errorMessage = '알 수 없는 오류가 발생했습니다'

@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { trpc } from '@/lib/trpc/client'
+import { logger } from '@/lib/safe-logger'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -90,7 +91,8 @@ export function OfferingForm({ isOpen, onClose, offeringId, onSuccess }: Offerin
       onClose()
       onSuccess?.()
     } catch (error) {
-      console.error('Failed to save offering:', error)
+      // 안전한 로깅
+      logger.error('Failed to save offering:', error)
     } finally {
       setIsSubmitting(false)
     }
