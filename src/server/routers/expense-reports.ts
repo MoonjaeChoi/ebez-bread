@@ -17,8 +17,8 @@ const expenseReportCreateSchema = z.object({
   // 3단계 결재담당자 지정
   approvers: z.object({
     step1: z.string().optional(), // 부서회계 담당자
-    step2: z.string().optional(), // 부장
-    step3: z.string().optional(), // 위원장
+    step2: z.string().optional(), // 부서장
+    step3: z.string().optional(), // 교구장
   }).optional(),
 })
 
@@ -1095,8 +1095,8 @@ export const expenseReportsRouter = router({
       // 역할별로 그룹화
       const groupedCandidates = {
         step1: candidates.filter(u => ['DEPARTMENT_ACCOUNTANT', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
-        step2: candidates.filter(u => ['DEPARTMENT_HEAD', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
-        step3: candidates.filter(u => ['COMMITTEE_CHAIR', 'FINANCIAL_MANAGER', 'SUPER_ADMIN'].includes(u.role)),
+        step2: candidates.filter(u => ['DEPARTMENT_HEAD'].includes(u.role)), // 부서장만 필터링
+        step3: candidates.filter(u => ['COMMITTEE_CHAIR'].includes(u.role)), // 교구장(위원장)만 필터링
       }
 
       return groupedCandidates
@@ -1317,8 +1317,8 @@ async function updateBudgetExecution(budgetItemId: string, tx: any) {
 async function createApprovalSteps(expenseReportId: string, tx: any, approvers?: { step1?: string; step2?: string; step3?: string }) {
   const steps = [
     { stepOrder: 1, role: 'DEPARTMENT_ACCOUNTANT', assignedUserId: approvers?.step1 || null }, // 부서회계
-    { stepOrder: 2, role: 'DEPARTMENT_HEAD', assignedUserId: approvers?.step2 || null },       // 부장
-    { stepOrder: 3, role: 'COMMITTEE_CHAIR', assignedUserId: approvers?.step3 || null },       // 위원장
+    { stepOrder: 2, role: 'DEPARTMENT_HEAD', assignedUserId: approvers?.step2 || null },       // 부서장
+    { stepOrder: 3, role: 'COMMITTEE_CHAIR', assignedUserId: approvers?.step3 || null },       // 교구장
   ]
 
   for (const step of steps) {
@@ -1340,9 +1340,9 @@ function getApprovalStepsForRole(role: UserRole): number[] {
     case 'DEPARTMENT_ACCOUNTANT':
       return [1] // 1단계: 부서회계
     case 'DEPARTMENT_HEAD':
-      return [2] // 2단계: 부장
+      return [2] // 2단계: 부서장
     case 'COMMITTEE_CHAIR':
-      return [3] // 3단계: 위원장
+      return [3] // 3단계: 교구장
     case 'SUPER_ADMIN':
     case 'FINANCIAL_MANAGER':
       return [1, 2, 3] // 모든 단계 승인 가능
@@ -1496,8 +1496,8 @@ async function sendFinalApprovalNotification(expenseReportId: string, tx: any) {
 function getStepName(stepOrder: number): string {
   switch (stepOrder) {
     case 1: return '부서회계'
-    case 2: return '부장'
-    case 3: return '위원장'
+    case 2: return '부서장'
+    case 3: return '교구장'
     default: return '알 수 없음'
   }
 }

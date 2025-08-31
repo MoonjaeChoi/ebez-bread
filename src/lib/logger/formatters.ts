@@ -1,4 +1,4 @@
-import winston from 'winston'
+import * as winston from 'winston'
 import type { LogContext } from './index'
 
 const { combine, timestamp, errors, printf, colorize, json } = winston.format
@@ -47,7 +47,12 @@ export const productionFormat = combine(
       service: 'church-management-api',
       environment: process.env.NODE_ENV || 'development',
       ...(info.context ? { context: info.context } : {}),
-      ...(info.error && typeof info.error === 'object' && 'message' in info.error && 'stack' in info.error ? { error: { message: info.error.message, stack: info.error.stack } } : {}),
+      ...(info.error && typeof info.error === 'object' && 'message' in info.error && 'stack' in info.error ? { 
+        error: { 
+          message: info.error.message, 
+          stack: info.error.stack 
+        } 
+      } : {}),
       ...(info.performance ? { performance: info.performance } : {}),
       ...(info.meta ? { meta: info.meta } : {})
     }

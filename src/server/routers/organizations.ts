@@ -44,12 +44,30 @@ export const organizationsRouter = router({
         where,
         include: {
           parent: true,
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          updatedBy: {
+            select: { id: true, name: true, email: true }
+          },
           children: {
             where: includeInactive ? {} : { isActive: true },
             include: {
+              createdBy: {
+                select: { id: true, name: true, email: true }
+              },
+              updatedBy: {
+                select: { id: true, name: true, email: true }
+              },
               children: {
                 where: includeInactive ? {} : { isActive: true },
                 include: {
+                  createdBy: {
+                    select: { id: true, name: true, email: true }
+                  },
+                  updatedBy: {
+                    select: { id: true, name: true, email: true }
+                  },
                   children: {
                     where: includeInactive ? {} : { isActive: true },
                     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
@@ -120,6 +138,12 @@ export const organizationsRouter = router({
         },
         include: {
           parent: true,
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          updatedBy: {
+            select: { id: true, name: true, email: true }
+          },
           _count: {
             select: {
               children: true,
@@ -148,6 +172,12 @@ export const organizationsRouter = router({
         },
         include: {
           parent: true,
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          updatedBy: {
+            select: { id: true, name: true, email: true }
+          },
           children: {
             where: { isActive: true },
             orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
@@ -306,9 +336,16 @@ export const organizationsRouter = router({
         data: {
           ...input,
           churchId: ctx.session.user.churchId,
+          createdById: ctx.session.user.id,
         },
         include: {
           parent: true,
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          updatedBy: {
+            select: { id: true, name: true, email: true }
+          },
           _count: {
             select: {
               children: true,
@@ -365,9 +402,18 @@ export const organizationsRouter = router({
 
       const organization = await ctx.prisma.organization.update({
         where: { id },
-        data: updateData,
+        data: {
+          ...updateData,
+          updatedById: ctx.session.user.id,
+        },
         include: {
           parent: true,
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          updatedBy: {
+            select: { id: true, name: true, email: true }
+          },
           children: {
             where: { isActive: true },
             orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]

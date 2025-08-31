@@ -250,9 +250,9 @@ export function ExpenseReportForm({
                     </Select>
                   </div>
 
-                  {/* 2단계: 부장 */}
+                  {/* 2단계: 부서장 */}
                   <div className="space-y-2">
-                    <Label htmlFor="step2">2단계: 부장</Label>
+                    <Label htmlFor="step2">2단계: 부서장</Label>
                     <Select
                       value={watch('approvers')?.step2 || 'auto'}
                       onValueChange={(value) => setValue('approvers.step2', value === 'auto' ? undefined : value)}
@@ -274,9 +274,9 @@ export function ExpenseReportForm({
                     </Select>
                   </div>
 
-                  {/* 3단계: 위원장 */}
+                  {/* 3단계: 교구장 */}
                   <div className="space-y-2">
-                    <Label htmlFor="step3">3단계: 위원장</Label>
+                    <Label htmlFor="step3">3단계: 교구장</Label>
                     <Select
                       value={watch('approvers')?.step3 || 'auto'}
                       onValueChange={(value) => setValue('approvers.step3', value === 'auto' ? undefined : value)}

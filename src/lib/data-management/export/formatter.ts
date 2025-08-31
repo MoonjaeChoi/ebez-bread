@@ -10,7 +10,7 @@ import {
   ExpenseReportExportData,
   OrganizationExportData
 } from '../types'
-import { logger } from '@/lib/logger'
+import { logger } from '../../logger'
 
 export class DataFormatter {
   /**
@@ -161,6 +161,8 @@ export class DataFormatter {
       sortOrder: org.sortOrder,
       createdAt: org.createdAt,
       updatedAt: org.updatedAt,
+      createdById: org.createdById,
+      updatedById: org.updatedById,
       parentCode: org.parent?.code || ''
     }))
   }
