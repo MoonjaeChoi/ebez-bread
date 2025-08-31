@@ -92,7 +92,7 @@ export function BackupDialog({ children }: BackupDialogProps) {
     const now = new Date()
     const dateStr = now.toISOString().split('T')[0]
     const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '')
-    return `에벤에셀교회_백업_${dateStr}_${timeStr}.xlsx`
+    return `과천교회_백업_${dateStr}_${timeStr}.xlsx`
   }
 
   const handleCreateBackup = async () => {

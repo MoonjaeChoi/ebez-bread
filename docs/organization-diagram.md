@@ -1,10 +1,10 @@
-# 에벤에셀교회 조직도 다이어그램
+# 과천교회 조직도 다이어그램
 
 ## 🏛️ 전체 조직 구조도
 
 ```mermaid
 graph TB
-    Church[에벤에셀교회<br/>Ebenezer Church]
+    Church[과천교회<br/>Ebenezer Church]
     
     %% 1단계: 위원회
     PW[PW<br/>예배찬양위원회<br/>Praise & Worship]

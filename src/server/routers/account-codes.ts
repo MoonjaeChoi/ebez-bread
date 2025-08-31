@@ -36,10 +36,11 @@ export const accountCodesRouter = router({
   getAll: protectedProcedure
     .input(accountCodeQuerySchema)
     .query(async ({ ctx, input }) => {
-      const { page, limit, search, type, level, parentId, includeInactive, churchOnly } = input
-      const skip = (page - 1) * limit
+      try {
+        const { page, limit, search, type, level, parentId, includeInactive, churchOnly } = input
+        const skip = (page - 1) * limit
 
-      const where: any = {
+        const where: any = {
         ...(search && {
           OR: [
             { code: { contains: search, mode: 'insensitive' } },
@@ -91,11 +92,18 @@ export const accountCodesRouter = router({
         ctx.prisma.accountCode.count({ where }),
       ])
 
-      return {
-        accountCodes,
-        total,
-        pages: Math.ceil(total / limit),
-        currentPage: page,
+        return {
+          accountCodes,
+          total,
+          pages: Math.ceil(total / limit),
+          currentPage: page,
+        }
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch account codes',
+          cause: error
+        })
       }
     }),
 

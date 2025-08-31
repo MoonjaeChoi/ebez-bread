@@ -7,7 +7,7 @@ async function main() {
 
   // 1. 교회 조회
   const church = await prisma.church.findFirst({
-    where: { name: '에벤에셀교회' }
+    where: { name: '과천교회' }
   })
 
   if (!church) {

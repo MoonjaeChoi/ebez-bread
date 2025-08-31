@@ -93,11 +93,12 @@ export const budgetsRouter = router({
   getAll: protectedProcedure
     .input(budgetQuerySchema)
     .query(async ({ ctx, input }) => {
-      const { page, limit, search, departmentId, year, quarter, status, startDate, endDate } = input
-      const skip = (page - 1) * limit
+      try {
+        const { page, limit, search, departmentId, year, quarter, status, startDate, endDate } = input
+        const skip = (page - 1) * limit
 
-      const where: any = {
-        churchId: ctx.session.user.churchId,
+        const where: any = {
+          churchId: ctx.session.user.churchId,
         ...(search && {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },
@@ -162,11 +163,18 @@ export const budgetsRouter = router({
         ctx.prisma.budget.count({ where }),
       ])
 
-      return {
-        budgets,
-        total,
-        pages: Math.ceil(total / limit),
-        currentPage: page,
+        return {
+          budgets,
+          total,
+          pages: Math.ceil(total / limit),
+          currentPage: page,
+        }
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch budgets',
+          cause: error
+        })
       }
     }),
 

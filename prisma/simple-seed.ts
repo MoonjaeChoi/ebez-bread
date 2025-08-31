@@ -8,13 +8,13 @@ async function simpleSeed() {
   try {
     // 1. 교회 확인/생성
     let church = await prisma.church.findFirst({
-      where: { name: '에벤에셀교회' }
+      where: { name: '과천교회' }
     })
 
     if (!church) {
       church = await prisma.church.create({
         data: {
-          name: '에벤에셀교회',
+          name: '과천교회',
           address: '서울특별시 종로구 세종대로 175',
           phone: '02-1588-1234',
           email: 'info@ebenezer.org',

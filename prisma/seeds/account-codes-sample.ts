@@ -85,11 +85,11 @@ async function main() {
   
   // 교회 찾기
   const church = await prisma.church.findFirst({
-    where: { name: '에벤에셀교회' }
+    where: { name: '과천교회' }
   })
   
   if (!church) {
-    console.error('❌ 에벤에셀교회를 찾을 수 없습니다.')
+    console.error('❌ 과천교회를 찾을 수 없습니다.')
     return
   }
   

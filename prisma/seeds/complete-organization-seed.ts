@@ -439,7 +439,7 @@ const organizations: OrganizationData[] = [
 ]
 
 async function main() {
-  console.log('🌱 에벤에셀교회 완전한 조직구조 시드 시작...')
+  console.log('🌱 과천교회 완전한 조직구조 시드 시작...')
   
   try {
     // 기존 데이터가 있으면 삭제

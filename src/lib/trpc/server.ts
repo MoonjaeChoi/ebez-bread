@@ -46,6 +46,23 @@ const authMiddleware = t.middleware(({ ctx, next }) => {
     })
     throw new TRPCError({ code: 'UNAUTHORIZED' })
   }
+
+  // Check if user has churchId (required for most operations)
+  if (!ctx.session.user.churchId) {
+    logger.error('User authenticated but missing churchId', new Error('Missing churchId'), {
+      userId: ctx.session.user.id,
+      action: 'auth_missing_church_id',
+      metadata: {
+        userRole: ctx.session.user.role,
+        userEmail: ctx.session.user.email,
+        sessionKeys: Object.keys(ctx.session.user)
+      }
+    })
+    throw new TRPCError({ 
+      code: 'BAD_REQUEST', 
+      message: 'User account is not associated with a church. Please contact your administrator.' 
+    })
+  }
   
   // Log successful authentication
   logger.debug('User authenticated for tRPC request', {

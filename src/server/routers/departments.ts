@@ -32,20 +32,21 @@ export const departmentsRouter = router({
   getAll: protectedProcedure
     .input(departmentQuerySchema)
     .query(async ({ ctx, input }) => {
-      const { page, limit, search, includeInactive, parentId } = input
-      const skip = (page - 1) * limit
+      try {
+        const { page, limit, search, includeInactive, parentId } = input
+        const skip = (page - 1) * limit
 
-      const where: any = {
-        churchId: ctx.session.user.churchId,
-        ...(search && {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-          ],
-        }),
-        ...(parentId && { parentId }),
-        ...(!includeInactive && { isActive: true }),
-      }
+        const where: any = {
+          churchId: ctx.session.user.churchId,
+          ...(search && {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+            ],
+          }),
+          ...(parentId && { parentId }),
+          ...(!includeInactive && { isActive: true }),
+        }
 
       const [departments, total] = await Promise.all([
         ctx.prisma.department.findMany({
@@ -93,6 +94,13 @@ export const departmentsRouter = router({
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+      }
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch departments',
+          cause: error
+        })
       }
     }),
 
