@@ -7,7 +7,6 @@ const prisma = new PrismaClient()
 async function executeQuery(query: string) {
   try {
     console.log('📋 실행할 쿼리:', query)
-    console.log('=' * 50)
     
     const result = await prisma.$queryRawUnsafe(query)
     
