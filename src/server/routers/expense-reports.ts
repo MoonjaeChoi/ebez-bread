@@ -74,9 +74,7 @@ export const expenseReportsRouter = router({
       const skip = (page - 1) * limit
 
       const where = {
-        church: {
-          id: ctx.session.user.churchId,
-        },
+        churchId: ctx.session.user.churchId,
         ...(search && {
           OR: [
             { title: { contains: search, mode: 'insensitive' as const } },
@@ -172,40 +170,53 @@ export const expenseReportsRouter = router({
       status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAID']).optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const { page, limit, status } = input
-      const skip = (page - 1) * limit
+      try {
+        const { page, limit, status } = input
+        const skip = (page - 1) * limit
 
-      const where = {
-        requesterId: ctx.session.user.id,
-        churchId: ctx.session.user.churchId,
-        ...(status && { status }),
-      }
+        const where = {
+          requesterId: ctx.session.user.id,
+          churchId: ctx.session.user.churchId,
+          ...(status && { status }),
+        }
 
-      const [expenseReports, total] = await Promise.all([
-        ctx.prisma.expenseReport.findMany({
-          where,
-          skip,
-          take: limit,
-          include: {
-            requester: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
+        const [expenseReports, total] = await Promise.all([
+          ctx.prisma.expenseReport.findMany({
+            where,
+            skip,
+            take: limit,
+            include: {
+              requester: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true,
+                },
               },
             },
-          },
-          orderBy: { requestDate: 'desc' },
-        }),
-        ctx.prisma.expenseReport.count({ where }),
-      ])
+            orderBy: { requestDate: 'desc' },
+          }),
+          ctx.prisma.expenseReport.count({ where }),
+        ])
 
-      return {
-        expenseReports,
-        total,
-        pages: Math.ceil(total / limit),
-        currentPage: page,
+        return {
+          expenseReports,
+          total,
+          pages: Math.ceil(total / limit),
+          currentPage: page,
+        }
+      } catch (error) {
+        safeLogger.error('Failed to fetch my expense reports', { 
+          userId: ctx.session.user.id, 
+          churchId: ctx.session.user.churchId,
+          error 
+        })
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch expense reports',
+          cause: error
+        })
       }
     }),
 
@@ -485,7 +496,7 @@ export const expenseReportsRouter = router({
 
   // Get expense categories
   getCategories: protectedProcedure
-    .query(async ({ ctx }) => {
+    .query(async () => {
       // Return enum values with Korean labels for display
       const categoryMapping = [
         { value: 'OFFICE', label: '사무용품' },
@@ -1277,18 +1288,6 @@ async function validateBudgetExpense(
   }
 }
 
-function determineApprovalSteps(amount: number, category: string) {
-  // 금액과 카테고리에 따른 승인 단계 결정
-  const requiresDepartmentApproval = amount >= 100000 // 10만원 이상
-  const requiresFinanceApproval = amount >= 500000    // 50만원 이상
-  const requiresFinalApproval = amount >= 1000000     // 100만원 이상
-
-  return {
-    requiresDepartmentApproval,
-    requiresFinanceApproval,
-    requiresFinalApproval,
-  }
-}
 
 async function updateBudgetExecution(budgetItemId: string, tx: any) {
   // 예산 집행 현황 재계산
