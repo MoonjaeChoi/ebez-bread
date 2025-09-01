@@ -1,0 +1,472 @@
+{
+  "info": {
+    "name": "Ebenezer Church Management API",
+    "description": "Complete API testing collection for Ebenezer Church Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "api_url",
+      "value": "{{base_url}}/api/trpc"
+    },
+    {
+      "key": "jwt_token",
+      "value": ""
+    },
+    {
+      "key": "church_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@gcchurch.kr\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/signin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "signin"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    if (responseJson.token) {",
+                  "        pm.collectionVariables.set('jwt_token', responseJson.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/session",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "session"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Members",
+      "item": [
+        {
+          "name": "Get All Members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/members.getAll?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["members.getAll"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"0\": {\n    \"json\": {\n      \"churchId\": {{church_id}},\n      \"name\": \"홍길동\",\n      \"email\": \"hong@example.com\",\n      \"phone\": \"010-1234-5678\",\n      \"address\": \"서울시 강남구\",\n      \"birthDate\": \"1990-01-01\",\n      \"membershipDate\": \"2024-01-01\",\n      \"status\": \"ACTIVE\",\n      \"membershipType\": \"REGULAR\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/members.create",
+              "host": ["{{api_url}}"],
+              "path": ["members.create"]
+            }
+          }
+        },
+        {
+          "name": "Update Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"0\": {\n    \"json\": {\n      \"id\": 1,\n      \"churchId\": {{church_id}},\n      \"name\": \"홍길동 (수정됨)\",\n      \"email\": \"hong.updated@example.com\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/members.update",
+              "host": ["{{api_url}}"],
+              "path": ["members.update"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounting",
+      "item": [
+        {
+          "name": "Account Codes - Get All",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/accountCodes.getAll?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["accountCodes.getAll"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Budgets - Get All",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/budgets.getAll?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["budgets.getAll"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Transactions - Get All",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/transactions.getAll?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["transactions.getAll"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"0\": {\n    \"json\": {\n      \"churchId\": {{church_id}},\n      \"description\": \"테스트 거래\",\n      \"amount\": 100000,\n      \"date\": \"2024-01-01\",\n      \"type\": \"INCOME\",\n      \"accountCodeId\": 1,\n      \"budgetId\": 1\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/transactions.create",
+              "host": ["{{api_url}}"],
+              "path": ["transactions.create"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "Get All Organizations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/organizations.getAll?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["organizations.getAll"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Organization",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"0\": {\n    \"json\": {\n      \"churchId\": {{church_id}},\n      \"name\": \"청년부\",\n      \"description\": \"교회 청년부\",\n      \"type\": \"MINISTRY\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/organizations.create",
+              "host": ["{{api_url}}"],
+              "path": ["organizations.create"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Offerings",
+      "item": [
+        {
+          "name": "Get All Offerings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/offerings.getAll?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["offerings.getAll"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Offering",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"0\": {\n    \"json\": {\n      \"churchId\": {{church_id}},\n      \"memberId\": 1,\n      \"amount\": 50000,\n      \"type\": \"TITHE\",\n      \"date\": \"2024-01-01\",\n      \"method\": \"CASH\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{api_url}}/offerings.create",
+              "host": ["{{api_url}}"],
+              "path": ["offerings.create"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Member Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/reports.memberStatistics?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["reports.memberStatistics"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Financial Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/reports.financialSummary?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}},\"startDate\":\"2024-01-01\",\"endDate\":\"2024-12-31\"}}}",
+              "host": ["{{api_url}}"],
+              "path": ["reports.financialSummary"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}},\"startDate\":\"2024-01-01\",\"endDate\":\"2024-12-31\"}}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Church Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/admin.getChurchInfo?batch=1&input={\"0\":{\"json\":{\"churchId\":{{church_id}}}}}",
+              "host": ["{{api_url}}"],
+              "path": ["admin.getChurchInfo"],
+              "query": [
+                {
+                  "key": "batch",
+                  "value": "1"
+                },
+                {
+                  "key": "input",
+                  "value": "{\"0\":{\"json\":{\"churchId\":{{church_id}}}}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-set base_url for different environments",
+          "if (pm.environment.get('environment') === 'production') {",
+          "    pm.collectionVariables.set('base_url', 'https://your-production-domain.com');",
+          "} else if (pm.environment.get('environment') === 'staging') {",
+          "    pm.collectionVariables.set('base_url', 'https://your-staging-domain.com');",
+          "} else {",
+          "    pm.collectionVariables.set('base_url', 'http://localhost:3000');",
+          "}",
+          "",
+          "pm.collectionVariables.set('api_url', pm.collectionVariables.get('base_url') + '/api/trpc');"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global response time test",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "// Global status code test",
+          "pm.test('Status code is 200 or 201', function () {",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+          "});"
+        ]
+      }
+    }
+  ]
+}

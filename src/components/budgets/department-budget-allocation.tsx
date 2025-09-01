@@ -66,7 +66,7 @@ interface BudgetAllocationData {
 
 export function DepartmentBudgetAllocation() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
-  const [totalBudget, setTotalBudget] = useState<number>(0)
+  const [totalBudget, setTotalBudget] = useState<number>(1000000000)
   const [allocations, setAllocations] = useState<DepartmentBudgetAllocation[]>([])
   const [editingDepartment, setEditingDepartment] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
