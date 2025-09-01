@@ -61,6 +61,29 @@ export default function ExpenseReportsPage() {
 
   const canApprove = session?.user ? canApproveExpenses(session.user.role as any) : false
 
+  // 특정 지출결의서의 현재 단계에서 승인할 수 있는지 확인하는 함수
+  const canApproveCurrentStep = (report: any) => {
+    if (!session?.user) return false
+    
+    const userRole = session.user.role
+    
+    // SUPER_ADMIN은 모든 단계에서 승인 가능
+    if (userRole === 'SUPER_ADMIN') return true
+    
+    // 워크플로우가 진행 중이 아니면 승인 불가
+    if (report.workflowStatus !== 'IN_PROGRESS') return false
+    
+    // 현재 단계에 따른 역할 확인
+    const stepRoleMapping: Record<number, string[]> = {
+      1: ['ACCOUNTANT', 'DEPARTMENT_HEAD', 'COMMITTEE_CHAIR'], // 부서회계
+      2: ['DEPARTMENT_HEAD', 'COMMITTEE_CHAIR'], // 부서장
+      3: ['COMMITTEE_CHAIR'] // 위원장
+    }
+    
+    const allowedRoles = stepRoleMapping[report.currentStep] || []
+    return allowedRoles.includes(userRole)
+  }
+
   const { data, isLoading, refetch } = trpc.expenseReports.getAll.useQuery({
     page,
     limit: 15,
@@ -160,6 +183,7 @@ export default function ExpenseReportsPage() {
   const getStatusBadge = (status: ReportStatus) => {
     const statusConfig = {
       PENDING: { variant: 'secondary' as const, icon: Clock, text: '승인 대기', color: 'text-orange-600' },
+      DEPARTMENT_APPROVED: { variant: 'outline' as const, icon: Clock, text: '부장 승인', color: 'text-blue-600' },
       APPROVED: { variant: 'default' as const, icon: CheckCircle, text: '승인됨', color: 'text-green-600' },
       REJECTED: { variant: 'destructive' as const, icon: XCircle, text: '반려됨', color: 'text-red-600' },
       PAID: { variant: 'secondary' as const, icon: CheckCircle, text: '지급완료', color: 'text-blue-600' },
@@ -279,6 +303,7 @@ export default function ExpenseReportsPage() {
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
                   <SelectItem value="PENDING">승인 대기</SelectItem>
+                  <SelectItem value="DEPARTMENT_APPROVED">부장 승인</SelectItem>
                   <SelectItem value="APPROVED">승인됨</SelectItem>
                   <SelectItem value="REJECTED">반려됨</SelectItem>
                   <SelectItem value="PAID">지급완료</SelectItem>
@@ -393,11 +418,12 @@ export default function ExpenseReportsPage() {
                                   <Edit className="w-4 h-4" />
                                 </Button>
                               )}
-                              {canApprove && report.status === 'PENDING' && (
+                              {canApproveCurrentStep(report) && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => handleApprove(report.id)}
+                                  title="승인 처리"
                                 >
                                   <CheckCircle className="w-4 h-4" />
                                 </Button>
@@ -573,12 +599,23 @@ export default function ExpenseReportsPage() {
                           )}
                         </div>
                         <div className="flex space-x-2">
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleApprove(report.id)}
-                          >
-                            승인 처리
-                          </Button>
+                          {canApproveCurrentStep(report) ? (
+                            <Button 
+                              size="sm" 
+                              onClick={() => handleApprove(report.id)}
+                            >
+                              승인 처리
+                            </Button>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              disabled
+                              title="현재 단계의 승인 권한이 없습니다"
+                            >
+                              승인 권한 없음
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

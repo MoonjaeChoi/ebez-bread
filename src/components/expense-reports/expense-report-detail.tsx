@@ -52,6 +52,14 @@ export function ExpenseReportDetail({
     { enabled: !!reportId && isOpen }
   )
 
+  const { data: approvalPermission } = trpc.expenseReports.checkApprovalPermission.useQuery(
+    { expenseReportId: reportId },
+    { 
+      enabled: !!reportId && isOpen && !!report && report.workflowStatus === 'IN_PROGRESS',
+      refetchOnWindowFocus: false,
+    }
+  )
+
   const submitMutation = trpc.expenseReports.submit.useMutation({
     onSuccess: () => {
       toast.success('지출결의서가 제출되었습니다')
@@ -84,6 +92,7 @@ export function ExpenseReportDetail({
   const getStatusBadge = (status: ReportStatus) => {
     const statusConfig = {
       PENDING: { variant: 'secondary' as const, icon: Clock, text: '승인 대기', color: 'text-orange-600' },
+      DEPARTMENT_APPROVED: { variant: 'outline' as const, icon: Clock, text: '부장 승인', color: 'text-blue-600' },
       APPROVED: { variant: 'default' as const, icon: CheckCircle, text: '승인됨', color: 'text-green-600' },
       REJECTED: { variant: 'destructive' as const, icon: XCircle, text: '반려됨', color: 'text-red-600' },
       PAID: { variant: 'secondary' as const, icon: CheckCircle, text: '지급완료', color: 'text-blue-600' },
@@ -271,7 +280,7 @@ export function ExpenseReportDetail({
                     </Button>
                   )}
                   
-                  {report.workflowStatus === 'IN_PROGRESS' && (
+                  {report.workflowStatus === 'IN_PROGRESS' && approvalPermission?.canApprove && (
                     <Button 
                       onClick={() => setShowWorkflowApproval(true)}
                       className="flex items-center space-x-2"
@@ -279,6 +288,13 @@ export function ExpenseReportDetail({
                       <Shield className="w-4 h-4" />
                       <span>승인 처리</span>
                     </Button>
+                  )}
+                  
+                  {report.workflowStatus === 'IN_PROGRESS' && approvalPermission && !approvalPermission.canApprove && (
+                    <div className="text-center text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                      <Shield className="w-4 h-4 mx-auto mb-1 text-gray-400" />
+                      <p>{approvalPermission.message || '승인 권한이 없습니다'}</p>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -436,6 +452,13 @@ export function ExpenseReportDetail({
                     <Clock className="w-8 h-8 mx-auto mb-2" />
                     <p className="font-medium">승인 대기 중</p>
                     <p className="text-sm text-gray-500">관리자의 승인을 기다리고 있습니다.</p>
+                  </div>
+                )}
+                {report.status === 'DEPARTMENT_APPROVED' && (
+                  <div className="text-blue-600">
+                    <Clock className="w-8 h-8 mx-auto mb-2" />
+                    <p className="font-medium">부장 승인 완료</p>
+                    <p className="text-sm text-gray-500">부서장 승인이 완료되었습니다. 위원장 승인을 기다리고 있습니다.</p>
                   </div>
                 )}
                 {report.status === 'APPROVED' && (

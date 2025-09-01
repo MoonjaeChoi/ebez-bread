@@ -640,8 +640,9 @@ enum ExpenseCategory {
 }
 
 enum ReportStatus {
-  PENDING
-  APPROVED
+  PENDING           // 승인대기
+  DEPARTMENT_APPROVED  // 부장승인 
+  APPROVED          // 승인됨
   REJECTED
   PAID
 }
