@@ -21,11 +21,16 @@ const logLevel: Prisma.LogLevel[] = process.env.NODE_ENV === 'production'
   ? ['error', 'warn']
   : ['query', 'info', 'warn', 'error']
 
+// Enhanced connection URL with PostgreSQL-specific settings to prevent prepared statement errors
+const enhancedDatabaseUrl = databaseUrl.includes('postgresql://') 
+  ? `${databaseUrl}${databaseUrl.includes('?') ? '&' : '?'}pgbouncer=true&connection_limit=10&pool_timeout=20`
+  : databaseUrl
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: logLevel,
   datasources: {
     db: {
-      url: databaseUrl,
+      url: enhancedDatabaseUrl,
     },
   },
   errorFormat: 'colorless', // Better for logging

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { router, protectedProcedure, managerProcedure } from '@/lib/trpc/server'
 import { OfferingType } from '@prisma/client'
+import { TRPCError } from '@trpc/server'
+import { logger as safeLogger } from '@/lib/safe-logger'
 
 // Input schemas
 const offeringCreateSchema = z.object({
@@ -30,51 +32,126 @@ export const offeringsRouter = router({
   getAll: protectedProcedure
     .input(offeringQuerySchema)
     .query(async ({ ctx, input }) => {
-      const { page, limit, search, offeringType, memberId, startDate, endDate } = input
-      const skip = (page - 1) * limit
+      try {
+        const { page, limit, search, offeringType, memberId, startDate, endDate } = input
+        const skip = (page - 1) * limit
 
-      const where = {
-        churchId: ctx.session.user.churchId,
-        ...(search && {
-          OR: [
-            { member: { name: { contains: search, mode: 'insensitive' as const } } },
-            { description: { contains: search, mode: 'insensitive' as const } },
-          ],
-        }),
-        ...(offeringType && { offeringType }),
-        ...(memberId && { memberId }),
-        ...(startDate && endDate && {
-          offeringDate: {
-            gte: startDate,
-            lte: endDate,
-          },
-        }),
-      }
+        const where = {
+          churchId: ctx.session.user.churchId,
+          ...(search && {
+            OR: [
+              { member: { name: { contains: search, mode: 'insensitive' as const } } },
+              { description: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }),
+          ...(offeringType && { offeringType }),
+          ...(memberId && { memberId }),
+          ...(startDate && endDate && {
+            offeringDate: {
+              gte: startDate,
+              lte: endDate,
+            },
+          }),
+        }
 
-      const [offerings, total] = await Promise.all([
-        ctx.prisma.offering.findMany({
-          where,
-          skip,
-          take: limit,
-          include: {
-            member: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
+        const [offerings, total] = await Promise.all([
+          ctx.prisma.offering.findMany({
+            where,
+            skip,
+            take: limit,
+            include: {
+              member: {
+                select: {
+                  id: true,
+                  name: true,
+                  phone: true,
+                },
               },
             },
-          },
-          orderBy: { offeringDate: 'desc' },
-        }),
-        ctx.prisma.offering.count({ where }),
-      ])
+            orderBy: { offeringDate: 'desc' },
+          }),
+          ctx.prisma.offering.count({ where }),
+        ])
 
-      return {
-        offerings,
-        total,
-        pages: Math.ceil(total / limit),
-        currentPage: page,
+        return {
+          offerings,
+          total,
+          pages: Math.ceil(total / limit),
+          currentPage: page,
+        }
+      } catch (error) {
+        safeLogger.error('Failed to fetch offerings', { 
+          churchId: ctx.session.user.churchId,
+          input,
+          error 
+        })
+        
+        // PostgreSQL connection issues - retry logic
+        if (error instanceof Error && error.message.includes('prepared statement')) {
+          safeLogger.warn('Retrying offering query due to prepared statement error')
+          
+          // Simple retry with fresh connection
+          try {
+            const retryWhere = {
+              churchId: ctx.session.user.churchId,
+              ...(input.search && {
+                OR: [
+                  { member: { name: { contains: input.search, mode: 'insensitive' as const } } },
+                  { description: { contains: input.search, mode: 'insensitive' as const } },
+                ],
+              }),
+              ...(input.offeringType && { offeringType: input.offeringType }),
+              ...(input.memberId && { memberId: input.memberId }),
+              ...(input.startDate && input.endDate && {
+                offeringDate: {
+                  gte: input.startDate,
+                  lte: input.endDate,
+                },
+              }),
+            }
+
+            const retrySkip = ((input.page || 1) - 1) * (input.limit || 20)
+
+            const [retryOfferings, retryTotal] = await Promise.all([
+              ctx.prisma.offering.findMany({
+                where: retryWhere,
+                skip: retrySkip,
+                take: input.limit || 20,
+                include: {
+                  member: {
+                    select: {
+                      id: true,
+                      name: true,
+                      phone: true,
+                    },
+                  },
+                },
+                orderBy: { offeringDate: 'desc' },
+              }),
+              ctx.prisma.offering.count({ where: retryWhere }),
+            ])
+
+            return {
+              offerings: retryOfferings,
+              total: retryTotal,
+              pages: Math.ceil(retryTotal / (input.limit || 20)),
+              currentPage: input.page || 1,
+            }
+          } catch (retryError) {
+            safeLogger.error('Retry also failed for offerings', retryError)
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Database connection error. Please try again.',
+              cause: retryError
+            })
+          }
+        }
+        
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch offerings',
+          cause: error
+        })
       }
     }),
 
@@ -169,88 +246,115 @@ export const offeringsRouter = router({
       endDate: z.string().optional(),
     }).optional())
     .query(async ({ ctx, input }) => {
-      const churchId = ctx.session.user.churchId
-      const startDate = input?.startDate ? new Date(input.startDate) : undefined
-      const endDate = input?.endDate ? new Date(input.endDate) : undefined
+      try {
+        const churchId = ctx.session.user.churchId
+        const startDate = input?.startDate ? new Date(input.startDate) : undefined
+        const endDate = input?.endDate ? new Date(input.endDate) : undefined
 
-      const where = {
-        churchId,
-        ...(startDate && endDate && {
-          offeringDate: {
-            gte: startDate,
-            lte: endDate,
-          },
-        }),
-      }
-
-      const [
-        totalAmount,
-        totalCount,
-        byType,
-        monthlyStats,
-      ] = await Promise.all([
-        ctx.prisma.offering.aggregate({
-          where,
-          _sum: { amount: true },
-        }),
-        ctx.prisma.offering.count({ where }),
-        ctx.prisma.offering.groupBy({
-          by: ['offeringType'],
-          where,
-          _sum: { amount: true },
-          _count: true,
-        }),
-        // Get monthly statistics for the current year
-        ctx.prisma.offering.groupBy({
-          by: ['offeringDate'],
-          where: {
-            churchId,
+        const where = {
+          churchId,
+          ...(startDate && endDate && {
             offeringDate: {
-              gte: new Date(new Date().getFullYear(), 0, 1),
-              lte: new Date(new Date().getFullYear(), 11, 31),
+              gte: startDate,
+              lte: endDate,
             },
-          },
-          _sum: { amount: true },
-          _count: true,
-        }),
-      ])
+          }),
+        }
 
-      // Process monthly stats
-      const monthlyData = Array.from({ length: 12 }, (_, i) => ({
-        month: i + 1,
-        amount: 0,
-        count: 0,
-      }))
+        const [
+          totalAmount,
+          totalCount,
+          byType,
+          monthlyStats,
+        ] = await Promise.all([
+          ctx.prisma.offering.aggregate({
+            where,
+            _sum: { amount: true },
+          }),
+          ctx.prisma.offering.count({ where }),
+          ctx.prisma.offering.groupBy({
+            by: ['offeringType'],
+            where,
+            _sum: { amount: true },
+            _count: true,
+          }),
+          // Get monthly statistics for the current year
+          ctx.prisma.offering.groupBy({
+            by: ['offeringDate'],
+            where: {
+              churchId,
+              offeringDate: {
+                gte: new Date(new Date().getFullYear(), 0, 1),
+                lte: new Date(new Date().getFullYear(), 11, 31),
+              },
+            },
+            _sum: { amount: true },
+            _count: true,
+          }),
+        ])
 
-      monthlyStats.forEach(stat => {
-        const month = new Date(stat.offeringDate).getMonth()
-        monthlyData[month].amount += Number(stat._sum.amount) || 0
-        monthlyData[month].count += stat._count
-      })
+        // Process monthly stats
+        const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+          month: i + 1,
+          amount: 0,
+          count: 0,
+        }))
 
-      return {
-        totalAmount: Number(totalAmount._sum.amount) || 0,
-        totalCount,
-        byType,
-        monthlyData,
+        monthlyStats.forEach(stat => {
+          const month = new Date(stat.offeringDate).getMonth()
+          monthlyData[month].amount += Number(stat._sum.amount) || 0
+          monthlyData[month].count += stat._count
+        })
+
+        return {
+          totalAmount: Number(totalAmount._sum.amount) || 0,
+          totalCount,
+          byType,
+          monthlyData,
+        }
+      } catch (error) {
+        safeLogger.error('Failed to fetch offering statistics', { 
+          churchId: ctx.session.user.churchId,
+          input,
+          error 
+        })
+        
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch offering statistics',
+          cause: error
+        })
       }
     }),
 
   // Get active members for dropdown
   getMembers: protectedProcedure
     .query(async ({ ctx }) => {
-      const members = await ctx.prisma.member.findMany({
-        where: {
+      try {
+        const members = await ctx.prisma.member.findMany({
+          where: {
+            churchId: ctx.session.user.churchId,
+            status: 'ACTIVE',
+          },
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+          },
+          orderBy: { name: 'asc' },
+        })
+        return members
+      } catch (error) {
+        safeLogger.error('Failed to fetch members for offerings', { 
           churchId: ctx.session.user.churchId,
-          status: 'ACTIVE',
-        },
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-        },
-        orderBy: { name: 'asc' },
-      })
-      return members
+          error 
+        })
+        
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch members',
+          cause: error
+        })
+      }
     }),
 })
