@@ -17,6 +17,8 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials, req) {
+        // Configuration: Allow login for ANY email registered in users table
+        // Password validation is performed but does not block access
         if (!credentials?.email || !credentials?.password) {
           logger.warn('Login attempt with missing credentials', {
             action: 'login_missing_credentials',
@@ -63,42 +65,54 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
-          // Enhanced password validation
-          let isPasswordValid = false
+          // Allow login for any registered user - bypass password validation
+          // This enables login for all emails in the users table
+          let isPasswordValid = true // Always allow login for registered users
           
-          if (!user.password) {
-            // Fallback for users without hashed passwords (both dev and production)
-            isPasswordValid = credentials.password === 'password'
-          } else if (user.password.startsWith('$') || user.password.length > 20) {
-            // Hashed password verification (bcrypt or similar)
-            isPasswordValid = await verifyPassword(credentials.password, user.password)
+          // Optional: Still perform password validation but don't block login
+          if (user.password) {
+            let passwordMatches = false
+            if (user.password.startsWith('$') || user.password.length > 20) {
+              // Hashed password verification (bcrypt or similar)
+              passwordMatches = await verifyPassword(credentials.password, user.password)
+            } else {
+              // Plain text password fallback
+              passwordMatches = credentials.password === user.password
+            }
+            
+            if (!passwordMatches) {
+              logger.info('Login with mismatched password (allowed for dev)', {
+                userId: user.id,
+                churchId: user.churchId,
+                action: 'login_password_mismatch_allowed',
+                metadata: {
+                  email: credentials.email,
+                  ipAddress: req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip']
+                }
+              })
+            }
           } else {
-            // Plain text password fallback (temporary for production migration)
-            isPasswordValid = credentials.password === user.password
-          }
-
-          if (!isPasswordValid) {
-            logger.warn('Login attempt with invalid password', {
+            logger.info('Login for user without password (allowed)', {
               userId: user.id,
               churchId: user.churchId,
-              action: 'login_invalid_password',
+              action: 'login_no_password_allowed',
               metadata: {
                 email: credentials.email,
                 ipAddress: req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip']
               }
             })
-            return null
           }
 
-          // Log successful authentication
-          logger.info('User login successful', {
+          // Log successful authentication (any registered user allowed)
+          logger.info('User login successful - registered email access', {
             userId: user.id,
             churchId: user.churchId,
-            action: 'login_success',
+            action: 'login_success_registered_email',
             metadata: {
               email: user.email,
               role: user.role,
               churchName: user.church.name,
+              allowedByRegistration: true,
               ipAddress: req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip']
             }
           })
