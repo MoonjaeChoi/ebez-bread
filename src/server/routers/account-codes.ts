@@ -115,45 +115,62 @@ export const accountCodesRouter = router({
       maxLevel: z.number().min(1).max(4).default(4),
     }))
     .query(async ({ ctx, input }) => {
-      const { type, churchOnly, maxLevel } = input
+      try {
+        const { type, churchOnly, maxLevel } = input
 
-      const where: any = {
-        level: 1, // 관(Level 1)부터 시작
-        isActive: true,
-        ...(type && { type }),
-      }
-
-      if (churchOnly) {
-        where.churchId = ctx.session.user.churchId
-      } else {
-        where.OR = [
-          { churchId: null },
-          { churchId: ctx.session.user.churchId },
-        ]
-      }
-
-      // 재귀적으로 하위 계정 포함
-      const includeChildren = (level: number): any => {
-        if (level >= maxLevel) return true
-        
-        return {
-          include: {
-            children: {
-              where: { isActive: true },
-              include: includeChildren(level + 1),
-              orderBy: { order: 'asc' },
-            },
-          },
+        const where: any = {
+          level: 1, // 관(Level 1)부터 시작
+          isActive: true,
+          ...(type && { type }),
         }
+
+        if (churchOnly) {
+          where.churchId = ctx.session.user.churchId
+        } else {
+          where.OR = [
+            { churchId: null },
+            { churchId: ctx.session.user.churchId },
+          ]
+        }
+
+        console.log('getTree query where:', JSON.stringify(where, null, 2))
+
+        // 재귀적으로 하위 계정 포함
+        const includeChildren = (level: number): any => {
+          if (level >= maxLevel) {
+            return {
+              where: { isActive: true },
+              orderBy: { order: 'asc' },
+            }
+          }
+          
+          return {
+            where: { isActive: true },
+            include: {
+              children: includeChildren(level + 1),
+            },
+            orderBy: { order: 'asc' },
+          }
+        }
+
+        const accountCodes = await ctx.prisma.accountCode.findMany({
+          where,
+          include: {
+            children: includeChildren(2),
+          },
+          orderBy: { order: 'asc' },
+        })
+
+        console.log('getTree result:', accountCodes.length, 'accounts found')
+        return accountCodes
+      } catch (error) {
+        console.error('getTree error:', error)
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch account tree',
+          cause: error
+        })
       }
-
-      const accountCodes = await ctx.prisma.accountCode.findMany({
-        where,
-        include: includeChildren(1),
-        orderBy: { order: 'asc' },
-      })
-
-      return accountCodes
     }),
 
   // 특정 계정과목 상세 조회
@@ -508,6 +525,77 @@ export const accountCodesRouter = router({
         isValid: true,
         level,
         accountType: getAccountTypeByCode(parts[0]),
+      }
+    }),
+
+  // 비표준 시스템 계정 삭제 (임시 관리용)
+  deleteNonStandard: managerProcedure
+    .input(z.object({ codes: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      const { codes } = input
+
+      // 비표준 패턴 확인
+      const standardPatterns = [
+        /^[1-5]$/,                    // Level 1
+        /^[1-5]-\d{2}$/,              // Level 2
+        /^[1-5]-\d{2}-\d{2}$/,        // Level 3
+        /^[1-5]-\d{2}-\d{2}-\d{2}$/   // Level 4
+      ]
+
+      const nonStandardCodes = codes.filter(code => 
+        !standardPatterns.some(pattern => pattern.test(code))
+      )
+
+      if (nonStandardCodes.length === 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '삭제할 비표준 계정코드가 없습니다',
+        })
+      }
+
+      // 거래 내역 확인
+      const accountsToDelete = await ctx.prisma.accountCode.findMany({
+        where: {
+          code: { in: nonStandardCodes },
+          churchId: null, // 시스템 계정만
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        }
+      })
+
+      const accountIds = accountsToDelete.map(a => a.id)
+
+      const referencingTransactions = await ctx.prisma.transaction.count({
+        where: {
+          OR: [
+            { debitAccountId: { in: accountIds } },
+            { creditAccountId: { in: accountIds } }
+          ]
+        }
+      })
+
+      if (referencingTransactions > 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `${referencingTransactions}개의 거래가 이 계정들을 참조하고 있어 삭제할 수 없습니다`,
+        })
+      }
+
+      // 삭제 실행
+      const result = await ctx.prisma.accountCode.deleteMany({
+        where: {
+          code: { in: nonStandardCodes },
+          churchId: null, // 시스템 계정만 삭제
+        }
+      })
+
+      return {
+        deletedCount: result.count,
+        deletedCodes: nonStandardCodes,
+        accounts: accountsToDelete,
       }
     }),
 

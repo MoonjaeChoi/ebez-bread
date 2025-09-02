@@ -12,7 +12,6 @@ import { DashboardLayout } from '@/components/layout'
 import { usePermissions } from '@/hooks/use-permissions'
 import {
   Users,
-  DollarSign,
   UserCheck,
   Heart,
   FileText,
@@ -25,7 +24,8 @@ import {
   TrendingUp,
   Calendar,
   CreditCard,
-  User
+  User,
+  ShoppingBasket
 } from 'lucide-react'
 
 interface FeatureCardProps {
@@ -131,7 +131,7 @@ export default function DashboardPage() {
       title: '헌금 관리',
       description: '헌금 및 재정을 관리합니다',
       detail: '헌금 입력, 조회 및 재정 보고서 기능',
-      icon: DollarSign,
+      icon: ShoppingBasket,
       href: '/dashboard/offerings',
       available: accessibleMenus.finances,
       color: 'bg-green-50 text-green-600',

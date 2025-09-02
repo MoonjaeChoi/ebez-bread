@@ -370,7 +370,7 @@ export function FinancialDashboard({
                 </div>
                 
                 <div className="mt-4 pt-4 border-t">
-                  <Link href="/dashboard/accounting/budgets">
+                  <Link href="/dashboard/budgets/allocation">
                     <Button variant="outline" size="sm" className="w-full">
                       <FileText className="w-4 h-4 mr-2" />
                       전체 예산 보기

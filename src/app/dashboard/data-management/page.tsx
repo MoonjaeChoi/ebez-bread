@@ -23,6 +23,7 @@ import {
   Info,
   Calculator
 } from 'lucide-react'
+import Link from 'next/link'
 import { ImportDialog } from '@/components/data-management/ImportDialog'
 import { ExportDialog } from '@/components/data-management/ExportDialog'
 import { BackupDialog } from '@/components/data-management/BackupDialog'
@@ -313,6 +314,29 @@ export default function DataManagementPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
                 {dataTypeInfo.map((item) => {
                   const Icon = item.icon
+                  const isClickable = item.type === DataType.ACCOUNT_CODES
+                  
+                  if (isClickable) {
+                    return (
+                      <Link key={item.type} href="/dashboard/data-management/account-tree">
+                        <div
+                          className={`p-4 rounded-lg border ${item.bgColor} ${item.borderColor} cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105`}
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            <Icon className={`h-6 w-6 ${item.color}`} />
+                            <h3 className="font-semibold">{item.title}</h3>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {item.description}
+                          </p>
+                          <div className="mt-3 text-xs text-blue-600 font-medium">
+                            클릭하여 트리구조 보기 →
+                          </div>
+                        </div>
+                      </Link>
+                    )
+                  }
+
                   return (
                     <div
                       key={item.type}

@@ -7,10 +7,11 @@ import {
   Calculator, 
   TreePine, 
   Wallet, 
-  Receipt, 
   TrendingUp,
   Building2,
-  ArrowRight
+  ArrowRight,
+  StickyNote,
+  Handshake
 } from 'lucide-react'
 import Link from 'next/link'
 import { trpc } from '@/lib/trpc/client'
@@ -40,7 +41,7 @@ export default function AccountingPage() {
     {
       title: '예산 관리',
       description: '부서별 예산 계획 및 집행 현황 관리',
-      href: '/dashboard/accounting/budgets',
+      href: '/dashboard/budgets/allocation',
       icon: Wallet,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
@@ -51,7 +52,7 @@ export default function AccountingPage() {
       title: '거래 관리',
       description: '복식부기 기반 회계 거래 입력 및 관리',
       href: '/dashboard/accounting/transactions',
-      icon: Receipt,
+      icon: Handshake,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
       features: ['복식부기 거래', '시산표 조회', '총계정원장'],
@@ -104,7 +105,7 @@ export default function AccountingPage() {
             
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Receipt className="w-5 h-5 text-green-600" />
+                <StickyNote className="w-5 h-5 text-green-600" />
               </div>
               <div>
                 <h3 className="font-medium">복식부기 시스템</h3>

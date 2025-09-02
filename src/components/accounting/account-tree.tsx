@@ -75,10 +75,20 @@ export function AccountTree({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const { data: accountTree, isLoading, refetch } = trpc.accountCodes.getTree.useQuery({
+  const { data: accountTree, isLoading, refetch, error } = trpc.accountCodes.getTree.useQuery({
     type: accountType,
     churchOnly,
     maxLevel
+  })
+
+  // 디버깅을 위한 로그
+  console.log('AccountTree Debug:', {
+    accountType,
+    churchOnly,
+    maxLevel,
+    accountTree,
+    isLoading,
+    error
   })
 
   const deleteAccount = trpc.accountCodes.delete.useMutation({
@@ -280,13 +290,19 @@ export function AccountTree({
           </div>
         </CardHeader>
         <CardContent>
-          {accountTree && accountTree.length > 0 ? (
+          {error ? (
+            <div className="text-center py-8 text-red-500">
+              <p>데이터를 불러오는 중 오류가 발생했습니다.</p>
+              <p className="text-sm mt-2">{error.message}</p>
+            </div>
+          ) : accountTree && accountTree.length > 0 ? (
             <div className="space-y-1">
               {accountTree.map((account) => renderAccountNode(account))}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">
-              등록된 계정과목이 없습니다.
+              <p>등록된 계정과목이 없습니다.</p>
+              <p className="text-sm mt-2">Level 1 (관) 계정부터 생성해주세요.</p>
             </div>
           )}
         </CardContent>
