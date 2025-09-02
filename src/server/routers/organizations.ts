@@ -36,7 +36,7 @@ export const organizationsRouter = router({
       const where = {
         churchId: ctx.session.user.churchId,
         ...(level && { level }),
-        ...(parentId && { parentId }),
+        ...(parentId !== undefined ? { parentId } : { parentId: null }), // Only root organizations
         ...(!includeInactive && { isActive: true }),
       }
 

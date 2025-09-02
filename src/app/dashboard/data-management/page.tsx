@@ -314,11 +314,15 @@ export default function DataManagementPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
                 {dataTypeInfo.map((item) => {
                   const Icon = item.icon
-                  const isClickable = item.type === DataType.ACCOUNT_CODES
+                  const isClickable = item.type === DataType.ACCOUNT_CODES || item.type === DataType.ORGANIZATIONS
                   
                   if (isClickable) {
+                    const href = item.type === DataType.ACCOUNT_CODES 
+                      ? "/dashboard/data-management/account-tree"
+                      : "/dashboard/data-management/organization-tree"
+                    
                     return (
-                      <Link key={item.type} href="/dashboard/data-management/account-tree">
+                      <Link key={item.type} href={href}>
                         <div
                           className={`p-4 rounded-lg border ${item.bgColor} ${item.borderColor} cursor-pointer hover:shadow-md transition-all duration-200 hover:scale-105`}
                         >
