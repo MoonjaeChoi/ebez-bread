@@ -33,13 +33,12 @@ import {
   Plus, 
   Edit, 
   Trash2, 
-  Calendar, 
-  DollarSign, 
   Clock, 
-  AlertCircle,
   CheckCircle,
   XCircle,
-  Receipt
+  Receipt,
+  Globe,
+  Target
 } from 'lucide-react'
 import { ExpenseReportForm } from '@/components/expense-reports/expense-report-form'
 import { ExpenseReportApproval } from '@/components/expense-reports/expense-report-approval'
@@ -60,29 +59,6 @@ export default function ExpenseReportsPage() {
   const [approvingReportId, setApprovingReportId] = useState<string | undefined>()
 
   const canApprove = session?.user ? canApproveExpenses(session.user.role as any) : false
-
-  // 특정 지출결의서의 현재 단계에서 승인할 수 있는지 확인하는 함수
-  const canApproveCurrentStep = (report: any) => {
-    if (!session?.user) return false
-    
-    const userRole = session.user.role
-    
-    // SUPER_ADMIN은 모든 단계에서 승인 가능
-    if (userRole === 'SUPER_ADMIN') return true
-    
-    // 워크플로우가 진행 중이 아니면 승인 불가
-    if (report.workflowStatus !== 'IN_PROGRESS') return false
-    
-    // 현재 단계에 따른 역할 확인
-    const stepRoleMapping: Record<number, string[]> = {
-      1: ['ACCOUNTANT', 'DEPARTMENT_HEAD', 'COMMITTEE_CHAIR'], // 부서회계
-      2: ['DEPARTMENT_HEAD', 'COMMITTEE_CHAIR'], // 부서장
-      3: ['COMMITTEE_CHAIR'] // 위원장
-    }
-    
-    const allowedRoles = stepRoleMapping[report.currentStep] || []
-    return allowedRoles.includes(userRole)
-  }
 
   const { data, isLoading, refetch } = trpc.expenseReports.getAll.useQuery({
     page,
@@ -233,7 +209,7 @@ export default function ExpenseReportsPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">총 결의서</CardTitle>
-                  <Receipt className="h-4 w-4 text-muted-foreground" />
+                  <Globe className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.totalReports}</div>
@@ -269,7 +245,7 @@ export default function ExpenseReportsPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">승인률</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <Target className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
@@ -418,7 +394,7 @@ export default function ExpenseReportsPage() {
                                   <Edit className="w-4 h-4" />
                                 </Button>
                               )}
-                              {canApproveCurrentStep(report) && (
+                              {(report as any).canApproveCurrentStep && (
                                 <Button 
                                   variant="ghost" 
                                   size="sm"
@@ -434,7 +410,7 @@ export default function ExpenseReportsPage() {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => handleDelete(report.id)}
-                                  disabled={deleteMutation.isLoading}
+                                  disabled={deleteMutation.isPending}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
@@ -541,7 +517,7 @@ export default function ExpenseReportsPage() {
                                 variant="ghost" 
                                 size="sm"
                                 onClick={() => handleDelete(report.id)}
-                                disabled={deleteMutation.isLoading}
+                                disabled={deleteMutation.isPending}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -599,7 +575,7 @@ export default function ExpenseReportsPage() {
                           )}
                         </div>
                         <div className="flex space-x-2">
-                          {canApproveCurrentStep(report) ? (
+                          {(report as any).canApproveCurrentStep ? (
                             <Button 
                               size="sm" 
                               onClick={() => handleApprove(report.id)}

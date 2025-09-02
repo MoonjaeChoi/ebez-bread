@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -25,7 +25,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Upload, FileText, Trash2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Upload, FileText, Trash2, Shield, Clock, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 const expenseReportFormSchema = z.object({
@@ -51,6 +53,31 @@ interface ExpenseReportFormProps {
   onSuccess?: () => void
 }
 
+// 결재단계 이름 매핑
+const getStepName = (stepOrder: number) => {
+  switch (stepOrder) {
+    case 1: return '부서회계'
+    case 2: return '부장'  
+    case 3: return '위원장'
+    default: return '알 수 없음'
+  }
+}
+
+// 결재단계 아이콘
+const getStepIcon = (status: string, isCurrentStep: boolean) => {
+  const iconClass = "w-4 h-4"
+  
+  if (status === 'APPROVED') {
+    return <CheckCircle className={`${iconClass} text-green-600`} />
+  } else if (status === 'REJECTED') {
+    return <XCircle className={`${iconClass} text-red-600`} />
+  } else if (isCurrentStep) {
+    return <Clock className={`${iconClass} text-yellow-600`} />
+  } else {
+    return <Clock className={`${iconClass} text-gray-400`} />
+  }
+}
+
 export function ExpenseReportForm({ 
   isOpen, 
   onClose, 
@@ -58,6 +85,10 @@ export function ExpenseReportForm({
   onSuccess 
 }: ExpenseReportFormProps) {
   const [isUploading, setIsUploading] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const dialogRef = useRef<HTMLDivElement>(null)
   const isEditing = !!reportId
   const { data: session } = useSession()
 
@@ -98,7 +129,6 @@ export function ExpenseReportForm({
     reset,
     watch,
     setValue,
-    control,
   } = useForm<ExpenseReportFormData>({
     resolver: zodResolver(expenseReportFormSchema),
     defaultValues: {
@@ -144,8 +174,45 @@ export function ExpenseReportForm({
 
   const handleClose = () => {
     reset()
+    setPosition({ x: 0, y: 0 })
     onClose()
   }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    })
+  }
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      const newX = e.clientX - dragOffset.x
+      const newY = e.clientY - dragOffset.y
+      
+      setPosition({
+        x: newX,
+        y: newY
+      })
+    }
+  }, [isDragging, dragOffset.x, dragOffset.y])
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp])
 
   const onSubmit = (data: ExpenseReportFormData) => {
     if (isEditing && reportId) {
@@ -204,12 +271,32 @@ export function ExpenseReportForm({
     toast.success('영수증이 제거되었습니다')
   }
 
-  const isLoading = createMutation.isLoading || updateMutation.isLoading
+  const isLoading = createMutation.isPending || updateMutation.isPending
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog open={isOpen} onOpenChange={!isDragging ? handleClose : undefined}>
+      <DialogContent 
+        ref={dialogRef}
+        className="sm:max-w-[600px] max-h-[95vh] overflow-y-auto"
+        style={{
+          transform: `translate(${position.x}px, ${position.y}px)`,
+          cursor: isDragging ? 'grabbing' : 'default'
+        }}
+        onPointerDownOutside={(e) => {
+          if (isDragging) {
+            e.preventDefault()
+          }
+        }}
+        onInteractOutside={(e) => {
+          if (isDragging) {
+            e.preventDefault()
+          }
+        }}
+      >
+        <DialogHeader 
+          className={`${isDragging ? 'cursor-grabbing' : 'cursor-grab'} select-none`}
+          onMouseDown={handleMouseDown}
+        >
           <DialogTitle>
             {isEditing ? '지출결의서 수정' : '지출결의서 작성'}
           </DialogTitle>
@@ -299,6 +386,86 @@ export function ExpenseReportForm({
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* 결재단계 진행 상황 (수정 모드에서만 표시) */}
+            {isEditing && editData?.approvals && editData.approvals.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <Shield className="w-5 h-5" />
+                    <span>결재 진행 상황</span>
+                    <Badge variant={
+                      editData.workflowStatus === 'DRAFT' ? 'outline' :
+                      editData.workflowStatus === 'IN_PROGRESS' ? 'secondary' :
+                      editData.workflowStatus === 'APPROVED' ? 'default' :
+                      editData.workflowStatus === 'REJECTED' ? 'destructive' :
+                      'outline'
+                    }>
+                      {editData.workflowStatus === 'DRAFT' ? '초안' :
+                       editData.workflowStatus === 'IN_PROGRESS' ? '승인 진행중' :
+                       editData.workflowStatus === 'APPROVED' ? '최종 승인' :
+                       editData.workflowStatus === 'REJECTED' ? '반려' :
+                       editData.workflowStatus}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between space-x-4">
+                    {editData.approvals?.map((approval, index) => (
+                      <div key={approval.id} className="flex-1">
+                        <div className="text-center space-y-2">
+                          <div className="flex justify-center">
+                            {getStepIcon(
+                              approval.status, 
+                              editData.currentStep === approval.stepOrder
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">
+                              {getStepName(approval.stepOrder)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {approval.status === 'APPROVED' ? '승인 완료' :
+                               approval.status === 'REJECTED' ? '반려' :
+                               editData.currentStep === approval.stepOrder ? '승인 대기' : '대기'}
+                            </p>
+                            {approval.assignedUserId && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                담당자 지정됨
+                              </p>
+                            )}
+                            {approval.approver && (
+                              <p className="text-xs text-green-600 mt-1">
+                                승인자: {approval.approver.name}
+                              </p>
+                            )}
+                            {approval.comment && (
+                              <p className="text-xs text-gray-600 mt-1 p-1 bg-gray-100 rounded text-center">
+                                {approval.comment}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {index < editData.approvals.length - 1 && (
+                          <div className="flex justify-center mt-2">
+                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="mt-4 text-center text-sm text-gray-600">
+                    {editData.workflowStatus === 'DRAFT' && '초안 상태입니다. 결재를 위해 제출해주세요.'}
+                    {editData.workflowStatus === 'IN_PROGRESS' && (
+                      <>현재 단계: <strong>{getStepName(editData.currentStep)}</strong> 승인 대기</>
+                    )}
+                    {editData.workflowStatus === 'APPROVED' && '모든 단계의 승인이 완료되었습니다.'}
+                    {editData.workflowStatus === 'REJECTED' && '결재 과정에서 반려되었습니다.'}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* 제목 */}

@@ -206,7 +206,7 @@ export default function AdminPermissionsPage() {
     return (menuPermissionsData as any)[role] || []
   }
 
-  const handlePermissionToggle = (menuKey: string, hasPermission: boolean) => {
+  const handlePermissionToggle = () => {
     // 실제 권한 변경 로직은 현재 하드코딩되어 있으므로
     // UI 업데이트만 처리하고 실제 변경은 로깅만 수행
     setHasChanges(true)
@@ -242,10 +242,10 @@ export default function AdminPermissionsPage() {
           </div>
           <Button 
             onClick={handleSaveChanges}
-            disabled={!hasChanges || updatePermissionsMutation.isLoading}
+            disabled={!hasChanges || updatePermissionsMutation.isPending}
           >
             <Save className="mr-2 h-4 w-4" />
-            {updatePermissionsMutation.isLoading ? '저장 중...' : '변경사항 저장'}
+            {updatePermissionsMutation.isPending ? '저장 중...' : '변경사항 저장'}
           </Button>
         </div>
 
@@ -359,7 +359,7 @@ export default function AdminPermissionsPage() {
                                 <TableCell className="text-center">
                                   <Switch
                                     checked={hasPermission}
-                                    onCheckedChange={(checked) => handlePermissionToggle(permission.key, checked)}
+                                    onCheckedChange={handlePermissionToggle}
                                     disabled={selectedRole === UserRole.SUPER_ADMIN}
                                   />
                                 </TableCell>

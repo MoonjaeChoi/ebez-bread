@@ -45,6 +45,24 @@ interface VisitationFormProps {
   onSuccess?: () => void
 }
 
+// Purpose mapping outside component to ensure it's available
+const purposeMapping = {
+  '일반 심방': 'GENERAL',
+  '새가족 심방': 'NEW_FAMILY',
+  '병문안': 'HOSPITAL',
+  '생일 축하': 'BIRTHDAY',
+  '경조사': 'CONDOLENCE',
+  '상담 및 기도': 'COUNSELING',
+  '전도 및 초청': 'EVANGELISM',
+  '교회 행사 안내': 'EVENT',
+  '기타': 'OTHER'
+} as const
+
+// Reverse mapping for display
+const reversePurposeMapping = Object.fromEntries(
+  Object.entries(purposeMapping).map(([korean, english]) => [english, korean])
+)
+
 export function VisitationForm({ 
   isOpen, 
   onClose, 
@@ -80,7 +98,8 @@ export function VisitationForm({
       ...(visitationData && {
         memberId: visitationData.memberId,
         visitDate: new Date(visitationData.visitDate).toISOString().split('T')[0],
-        purpose: visitationData.purpose || '',
+        purpose: visitationData.purpose ? 
+          (reversePurposeMapping[visitationData.purpose] || visitationData.purpose) : '',
         content: visitationData.content || '',
         followUpNeeded: visitationData.needsFollowUp,
         followUpDate: visitationData.followUpDate ? 
@@ -94,9 +113,16 @@ export function VisitationForm({
     
     try {
       const { followUpNeeded, ...dataWithoutFollowUpNeeded } = data
+      
+      // Map Korean purpose to English enum value
+      let mappedPurpose: string | undefined = undefined
+      if (data.purpose) {
+        mappedPurpose = purposeMapping[data.purpose as keyof typeof purposeMapping] || data.purpose
+      }
+      
       const processedData = {
         ...dataWithoutFollowUpNeeded,
-        purpose: data.purpose as any,
+        purpose: mappedPurpose as "EVENT" | "OTHER" | "GENERAL" | "NEW_FAMILY" | "HOSPITAL" | "BIRTHDAY" | "CONDOLENCE" | "COUNSELING" | "EVANGELISM",
         needsFollowUp: followUpNeeded,
         followUpDate: followUpNeeded && data.followUpDate ? data.followUpDate : undefined,
       }
@@ -125,18 +151,7 @@ export function VisitationForm({
   const selectedMember = members.find(m => m.id === watch('memberId'))
   const followUpNeeded = watch('followUpNeeded')
 
-  // Common visitation purposes
-  const commonPurposes = [
-    '일반 심방',
-    '새가족 심방',
-    '병문안',
-    '생일 축하',
-    '경조사',
-    '상담 및 기도',
-    '전도 및 초청',
-    '교회 행사 안내',
-    '기타'
-  ]
+  const commonPurposes = Object.keys(purposeMapping)
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>

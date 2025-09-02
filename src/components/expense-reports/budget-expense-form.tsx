@@ -20,7 +20,6 @@ import {
   Loader2, 
   Wallet, 
   Receipt, 
-  Calculator,
   Building2,
   DollarSign
 } from 'lucide-react'
@@ -217,7 +216,7 @@ export function BudgetExpenseForm({
     }
   }
 
-  const isLoading = isLoadingExpense || createExpense.isLoading || (updateExpense?.isLoading ?? false)
+  const isLoading = isLoadingExpense || createExpense.isPending || (updateExpense?.isPending ?? false)
   const canSubmit = budgetValidation?.isValid && !isLoading
 
   // 선택된 예산 항목 정보

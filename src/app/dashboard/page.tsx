@@ -21,7 +21,6 @@ import {
   Settings,
   ArrowRight,
   CheckCircle2,
-  Clock,
   Zap,
   TrendingUp,
   Calendar,

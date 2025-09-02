@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -131,7 +131,7 @@ export function AccountForm({
   }, [parentAccount, isEdit, form])
 
   // 계정 코드 유효성 검증을 위한 쿼리
-  const { data: codeValidationData, refetch: validateCodeQuery } = trpc.accountCodes.validateCode.useQuery(
+  const { refetch: validateCodeQuery } = trpc.accountCodes.validateCode.useQuery(
     {
       code: form.watch('code') || '',
       excludeId: accountId
@@ -141,7 +141,7 @@ export function AccountForm({
     }
   )
 
-  const validateCode = async (code: string) => {
+  const validateCode = useCallback(async (code: string) => {
     if (!code || code.length < 1) {
       setCodeValidation(null)
       return
@@ -161,7 +161,7 @@ export function AccountForm({
     } finally {
       setIsValidatingCode(false)
     }
-  }
+  }, [validateCodeQuery])
 
   // 계정 생성/수정 뮤테이션
   const createAccount = trpc.accountCodes.create.useMutation({
@@ -228,9 +228,9 @@ export function AccountForm({
     }, 500)
 
     return () => clearTimeout(timeoutId)
-  }, [watchedCode])
+  }, [watchedCode, validateCode])
 
-  const isLoading = isLoadingAccount || createAccount.isLoading || updateAccount.isLoading
+  const isLoading = isLoadingAccount || createAccount.isPending || updateAccount.isPending
 
   if (isEdit && isLoadingAccount) {
     return (
