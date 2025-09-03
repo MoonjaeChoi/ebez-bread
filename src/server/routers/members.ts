@@ -78,6 +78,44 @@ export const membersRouter = router({
       }
     }),
 
+  // Search members (simplified for dropdowns/autocomplete)
+  search: protectedProcedure
+    .input(z.object({
+      query: z.string().min(1, '검색어를 입력해주세요'),
+      limit: z.number().min(1).max(50).default(20)
+    }))
+    .query(async ({ ctx, input }) => {
+      const { query, limit } = input
+
+      const members = await ctx.prisma.member.findMany({
+        where: {
+          churchId: ctx.session.user.churchId,
+          status: MemberStatus.ACTIVE,
+          OR: [
+            { name: { contains: query, mode: 'insensitive' as const } },
+            { email: { contains: query, mode: 'insensitive' as const } },
+            { phone: { contains: query, mode: 'insensitive' as const } },
+          ],
+        },
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+          position: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        },
+        orderBy: { name: 'asc' },
+      })
+
+      return members
+    }),
+
   // Get single member
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))

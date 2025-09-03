@@ -314,12 +314,18 @@ export default function DataManagementPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
                 {dataTypeInfo.map((item) => {
                   const Icon = item.icon
-                  const isClickable = item.type === DataType.ACCOUNT_CODES || item.type === DataType.ORGANIZATIONS
+                  const isClickable = item.type === DataType.ACCOUNT_CODES || item.type === DataType.ORGANIZATIONS || item.type === DataType.ORGANIZATION_MEMBERSHIPS
                   
                   if (isClickable) {
                     const href = item.type === DataType.ACCOUNT_CODES 
                       ? "/dashboard/data-management/account-tree"
-                      : "/dashboard/data-management/organization-tree"
+                      : item.type === DataType.ORGANIZATIONS
+                      ? "/dashboard/data-management/organization-tree"
+                      : "/dashboard/data-management/organization-memberships"
+                    
+                    const linkText = item.type === DataType.ORGANIZATION_MEMBERSHIPS
+                      ? "클릭하여 구성원 관리 →"
+                      : "클릭하여 트리구조 보기 →"
                     
                     return (
                       <Link key={item.type} href={href}>
@@ -334,7 +340,7 @@ export default function DataManagementPage() {
                             {item.description}
                           </p>
                           <div className="mt-3 text-xs text-blue-600 font-medium">
-                            클릭하여 트리구조 보기 →
+                            {linkText}
                           </div>
                         </div>
                       </Link>
