@@ -17,10 +17,12 @@ import {
   Wallet,
   FileText,
   BarChart3,
-  Activity
+  Activity,
+  Plus
 } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
 import { OrganizationLevel } from '@prisma/client'
+import { WorkingModal } from '@/components/organization/WorkingModal'
 
 interface OrganizationWithChildren {
   id: string
@@ -57,10 +59,14 @@ export default function OrganizationTreePage() {
   const [selectedOrg, setSelectedOrg] = useState<OrganizationWithChildren | null>(null)
 
   // 조직 트리 구조 조회
-  const { data: organizations, isLoading, error } = trpc.organizations.getHierarchy.useQuery({
+  const { data: organizations, isLoading, error, refetch } = trpc.organizations.getHierarchy.useQuery({
     includeInactive: false,
     includeStats: true
   })
+
+  const handleOrganizationCreated = () => {
+    refetch()
+  }
 
   const toggleNode = (organizationId: string) => {
     const newExpanded = new Set(expandedNodes)
@@ -259,6 +265,13 @@ export default function OrganizationTreePage() {
         </div>
         
         <div className="flex items-center gap-2">
+          <WorkingModal onSuccess={handleOrganizationCreated}>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              조직 추가
+            </Button>
+          </WorkingModal>
+          
           <Button
             variant="outline"
             size="sm"
