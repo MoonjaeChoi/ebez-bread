@@ -24,6 +24,7 @@ import {
 import { trpc } from '@/lib/trpc/client'
 import { OrganizationMembershipForm } from '@/components/data-management/OrganizationMembershipForm'
 import { OrganizationMembershipList } from '@/components/data-management/OrganizationMembershipList'
+import { RoleManagementTab } from '@/components/organization/RoleManagementTab'
 
 // 직책 그룹 정의
 const ROLE_GROUPS = [
@@ -423,12 +424,10 @@ export default function OrganizationMembershipsPage() {
 
         {/* 직책 관리 탭 */}
         <TabsContent value="roles" className="space-y-6">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              직책 관리 기능은 개발 중입니다. 현재는 개요 탭에서 직책 그룹을 통해 직책을 등록할 수 있습니다.
-            </AlertDescription>
-          </Alert>
+          <RoleManagementTab 
+            organizations={organizations || []}
+            roles={roles || []}
+          />
         </TabsContent>
 
         {/* 구성원 관리 탭 */}

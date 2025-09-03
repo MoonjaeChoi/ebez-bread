@@ -499,6 +499,8 @@ model Organization {
   budgets                 Budget[]                 @relation("OrganizationBudgets")
   expenseReports          ExpenseReport[]          @relation("OrganizationExpenseReports")
   organizationMemberships OrganizationMembership[]
+  roleAssignments         OrganizationRoleAssignment[]
+  inheritedRoleAssignments OrganizationRoleAssignment[] @relation("RoleInheritanceFrom")
   church                  Church                   @relation(fields: [churchId], references: [id], onDelete: Cascade)
   parent                  Organization?            @relation("OrganizationHierarchy", fields: [parentId], references: [id])
   children                Organization[]           @relation("OrganizationHierarchy")
@@ -524,8 +526,9 @@ model OrganizationRole {
   createdAt    DateTime                 @default(now())
   updatedAt    DateTime                 @updatedAt
   churchId     String
-  memberships  OrganizationMembership[]
-  church       Church                   @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  memberships     OrganizationMembership[]
+  roleAssignments OrganizationRoleAssignment[]
+  church          Church                   @relation(fields: [churchId], references: [id], onDelete: Cascade)
 
   @@unique([churchId, name])
   @@index([churchId, level])
@@ -555,6 +558,29 @@ model OrganizationMembership {
   @@index([roleId])
   @@index([joinDate])
   @@map("organization_memberships")
+}
+
+model OrganizationRoleAssignment {
+  id             String           @id @default(cuid())
+  organizationId String
+  roleId         String
+  isInherited    Boolean          @default(false)  // true면 상위 조직으로부터 상속받은 직책
+  inheritedFrom  String?          // 어느 조직으로부터 상속받았는지
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  createdBy      String?
+  updatedBy      String?
+  
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           OrganizationRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  inheritedFromOrg Organization?  @relation("RoleInheritanceFrom", fields: [inheritedFrom], references: [id])
+
+  @@unique([organizationId, roleId])
+  @@index([organizationId])
+  @@index([roleId])
+  @@index([inheritedFrom])
+  @@map("organization_role_assignments")
 }
 
 enum UserRole {

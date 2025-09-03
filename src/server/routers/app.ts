@@ -15,6 +15,7 @@ import { transactionsRouter } from './transactions'
 import { organizationsRouter } from './organizations'
 import { organizationMembershipsRouter } from './organization-memberships'
 import { organizationRolesRouter } from './organization-roles'
+import { organizationRoleAssignmentsRouter } from './organization-role-assignments'
 import { departmentsRouter } from './departments'
 
 export const appRouter = router({
@@ -34,6 +35,7 @@ export const appRouter = router({
   organizations: organizationsRouter,
   organizationMemberships: organizationMembershipsRouter,
   organizationRoles: organizationRolesRouter,
+  organizationRoleAssignments: organizationRoleAssignmentsRouter,
   departments: departmentsRouter,
 })
 
