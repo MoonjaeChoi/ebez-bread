@@ -55,67 +55,51 @@ interface RoleManagementTabProps {
 // 직책 그룹 정의
 const ROLE_GROUPS = [
   {
-    id: 'ministry',
-    name: '목회자/교역자',
+    id: 'leadership',
+    name: '리더십 직책',
     icon: Crown,
     color: 'text-purple-600',
     bgColor: 'bg-purple-50',
     borderColor: 'border-purple-200',
     roles: [
-      { name: '교구목사', level: 95, isLeadership: true },
-      { name: '교역자', level: 90, isLeadership: true },
+      { name: '회장', level: 95, isLeadership: true },
+      { name: '위원장', level: 90, isLeadership: true },
+      { name: '부위원장', level: 85, isLeadership: true },
     ]
   },
   {
-    id: 'high_leadership',
-    name: '최고지도층',
+    id: 'management',
+    name: '관리직 직책',
     icon: Shield,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
     roles: [
-      { name: '회장', level: 95, isLeadership: true },
-      { name: '위원장', level: 90, isLeadership: true },
-      { name: '부위원장', level: 85, isLeadership: true },
-      { name: '교구장', level: 80, isLeadership: true },
-      { name: '부교구장', level: 75, isLeadership: true },
-      { name: '대장', level: 70, isLeadership: true },
+      { name: '부장', level: 80, isLeadership: true },
+      { name: '차장', level: 75, isLeadership: true },
+      { name: '교구목사', level: 85, isLeadership: true },
       { name: '단장', level: 70, isLeadership: true },
+      { name: '교역자', level: 80, isLeadership: true },
     ]
   },
   {
-    id: 'middle_leadership',
-    name: '중간지도층',
+    id: 'regional',
+    name: '구역/지역 직책',
     icon: Building2,
     color: 'text-green-600',
     bgColor: 'bg-green-50',
     borderColor: 'border-green-200',
     roles: [
+      { name: '교구장', level: 75, isLeadership: true },
+      { name: '부교구장', level: 70, isLeadership: true },
       { name: '구역장', level: 65, isLeadership: true },
       { name: '부구역장', level: 60, isLeadership: true },
-      { name: '임원', level: 60, isLeadership: true },
-      { name: '엘더', level: 65, isLeadership: true },
       { name: '리더', level: 55, isLeadership: true },
     ]
   },
   {
-    id: 'department_staff',
-    name: '부서 실무진',
-    icon: Users,
-    color: 'text-teal-600',
-    bgColor: 'bg-teal-50',
-    borderColor: 'border-teal-200',
-    roles: [
-      { name: '부장', level: 70, isLeadership: true },
-      { name: '차장', level: 65, isLeadership: true },
-      { name: '부감', level: 50, isLeadership: false },
-      { name: '교사', level: 50, isLeadership: false },
-      { name: '운영위원', level: 45, isLeadership: false },
-    ]
-  },
-  {
     id: 'administration',
-    name: '행정 직책',
+    name: '사무 직책',
     icon: Calculator,
     color: 'text-amber-600',
     bgColor: 'bg-amber-50',
@@ -131,7 +115,7 @@ const ROLE_GROUPS = [
   },
   {
     id: 'representatives',
-    name: '각부 대표직',
+    name: '대표 직책',
     icon: Star,
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-50',
@@ -141,24 +125,60 @@ const ROLE_GROUPS = [
       { name: '여전도회대표', level: 75, isLeadership: true },
       { name: '안수집사대표', level: 75, isLeadership: true },
       { name: '권사회대표', level: 75, isLeadership: true },
-      { name: '교구권사', level: 70, isLeadership: true },
     ]
   },
   {
-    id: 'music_ministry',
-    name: '음악 사역',
+    id: 'elder_positions',
+    name: '장로/권사 직책',
+    icon: Shield,
+    color: 'text-red-600',
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+    roles: [
+      { name: '교구권사', level: 70, isLeadership: true },
+      { name: '엘더', level: 70, isLeadership: true },
+      { name: '임원', level: 60, isLeadership: true },
+    ]
+  },
+  {
+    id: 'ministry_staff',
+    name: '사역자 직책',
+    icon: Users,
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+    roles: [
+      { name: '교사', level: 50, isLeadership: false },
+      { name: '대장', level: 55, isLeadership: true },
+      { name: '지휘자', level: 60, isLeadership: true },
+      { name: '반주자', level: 50, isLeadership: false },
+      { name: '솔리스트', level: 45, isLeadership: false },
+    ]
+  },
+  {
+    id: 'choir_positions',
+    name: '성가대 직책',
     icon: Music,
     color: 'text-pink-600',
     bgColor: 'bg-pink-50',
     borderColor: 'border-pink-200',
     roles: [
-      { name: '지휘자', level: 60, isLeadership: true },
-      { name: '반주자', level: 50, isLeadership: false },
-      { name: '솔리스트', level: 45, isLeadership: false },
       { name: '소프라노', level: 30, isLeadership: false },
       { name: '알토', level: 30, isLeadership: false },
       { name: '테너', level: 30, isLeadership: false },
       { name: '베이스', level: 30, isLeadership: false },
+    ]
+  },
+  {
+    id: 'committee',
+    name: '위원회 직책',
+    icon: Mic,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    roles: [
+      { name: '운영위원', level: 50, isLeadership: false },
+      { name: '부감', level: 40, isLeadership: false },
     ]
   },
 ]
@@ -862,7 +882,6 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
                       </div>
                     )}
                   </div>
-                </div>
                 
                 {ROLE_GROUPS.length === 0 && roles.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
