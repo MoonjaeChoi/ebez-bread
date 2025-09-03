@@ -68,7 +68,7 @@ const ROLE_GROUPS = [
   },
   {
     id: 'high_leadership',
-    name: '최고지도층',
+    name: '리더십',
     icon: Shield,
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
@@ -85,7 +85,7 @@ const ROLE_GROUPS = [
   },
   {
     id: 'middle_leadership',
-    name: '중간지도층',
+    name: '중간리더십',
     icon: Building2,
     color: 'text-green-600',
     bgColor: 'bg-green-50',
@@ -298,7 +298,6 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
 
   // 직책 할당/해제 뮤테이션
   const bulkAssignMutation = trpc.organizationRoleAssignments.bulkAssign.useMutation()
-  const unassignMutation = trpc.organizationRoleAssignments.unassign.useMutation()
   const createRoleMutation = trpc.organizationRoles.create.useMutation()
 
   // 선택된 조직이 변경될 때마다 역할 할당 상태 초기화
@@ -371,29 +370,30 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
 
     setIsLoading(true)
     try {
-      const orgAssignments = roleAssignments.get(selectedOrgId) || []
-      const changedAssignments = orgAssignments.filter(a => a.hasChanges)
       
-      // 할당할 직책들과 해제할 직책들 분리
-      const toAssign = changedAssignments.filter(a => a.isAssigned).map(a => a.roleId)
-      const toUnassign = changedAssignments.filter(a => !a.isAssigned)
+      // 현재 선택된 조직의 모든 직책 할당 상태를 가져옴
+      const orgAssignmentStates = roleAssignments.get(selectedOrgId) || []
       
-      // 직책 할당 (자동 상속 포함)
-      if (toAssign.length > 0) {
+      // 현재 할당되어야 할 모든 직책들 (변경사항 + 기존 할당)
+      const currentlyAssignedRoles = orgAssignmentStates
+        .filter(a => a.isAssigned && !a.isInherited) // 직접 할당된 것만
+        .map(a => a.roleId)
+      
+      // bulkAssign으로 모든 직책 상태를 한번에 설정
+      if (currentlyAssignedRoles.length > 0) {
         await bulkAssignMutation.mutateAsync({
           organizationId: selectedOrgId,
-          roleIds: toAssign,
-          replaceExisting: false,
-          autoInheritToChildren: true // 하위 조직에 자동 상속
+          roleIds: currentlyAssignedRoles,
+          replaceExisting: true, // 기존 직접 할당을 모두 제거하고 새로 할당
+          autoInheritToChildren: false // 임시로 자동 상속 비활성화
         })
-      }
-      
-      // 직책 해제
-      for (const assignment of toUnassign) {
-        await unassignMutation.mutateAsync({
+      } else {
+        // 모든 직책을 해제하는 경우
+        await bulkAssignMutation.mutateAsync({
           organizationId: selectedOrgId,
-          roleId: assignment.roleId,
-          removeInherited: true // 하위 조직의 상속도 제거
+          roleIds: [], // 빈 배열로 모든 직책 해제
+          replaceExisting: true,
+          autoInheritToChildren: false
         })
       }
       
@@ -467,7 +467,7 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
             organizationId: selectedOrgId,
             roleIds: [newRole.id],
             replaceExisting: false,
-            autoInheritToChildren: true
+            autoInheritToChildren: false
           })
           
           // 데이터 새로고침
@@ -500,7 +500,25 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
     }
   }
 
-  const selectedOrg = organizations.find(org => org.id === selectedOrgId)
+  // 조직 트리를 평면화하는 함수
+  const flattenOrganizations = (orgs: Organization[]): Organization[] => {
+    const result: Organization[] = []
+    
+    const flatten = (orgList: Organization[]) => {
+      for (const org of orgList) {
+        result.push(org)
+        if (org.children && org.children.length > 0) {
+          flatten(org.children)
+        }
+      }
+    }
+    
+    flatten(orgs)
+    return result
+  }
+
+  const allOrganizations = flattenOrganizations(organizations)
+  const selectedOrg = allOrganizations.find(org => org.id === selectedOrgId)
   const selectedOrgAssignments = selectedOrgId ? roleAssignments.get(selectedOrgId) || [] : []
   const directAssignments = selectedOrgAssignments.filter((a: RoleAssignmentState) => a.isAssigned && !a.isInherited)
   const inheritedAssignments = selectedOrgAssignments.filter((a: RoleAssignmentState) => a.isAssigned && a.isInherited)

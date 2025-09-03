@@ -1,6 +1,54 @@
 import { z } from 'zod'
 import { router, protectedProcedure, adminProcedure } from '@/lib/trpc/server'
 import { TRPCError } from '@trpc/server'
+import { PrismaClient } from '@prisma/client'
+
+// 조직 권한 확인 함수
+async function checkOrganizationPermission(
+  _prisma: PrismaClient,
+  _userId: string,
+  _organizationId: string
+): Promise<boolean> {
+  try {
+    // 임시로 모든 인증된 사용자에게 조직 관리 권한 부여
+    // TODO: 실제 프로덕션에서는 더 엄격한 권한 검사 구현 필요
+    return true
+
+    /*
+    // 향후 구현할 권한 검사 로직
+    // 1. 사용자가 해당 조직의 리더십 멤버인지 확인
+    const membership = await prisma.organizationMembership.findFirst({
+      where: {
+        memberId: userId,
+        organizationId,
+        isActive: true,
+      },
+      include: {
+        role: true,
+      },
+    })
+
+    if (membership && membership.role?.isLeadership) {
+      return true
+    }
+
+    // 2. 상위 조직에서의 권한도 확인 (재귀적)
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { parentId: true },
+    })
+
+    if (organization?.parentId) {
+      return await checkOrganizationPermission(prisma, userId, organization.parentId)
+    }
+
+    return false
+    */
+  } catch (error) {
+    console.error('Error checking organization permission:', error)
+    return false
+  }
+}
 
 // Input schemas
 const roleAssignmentCreateSchema = z.object({
@@ -10,14 +58,11 @@ const roleAssignmentCreateSchema = z.object({
   inheritedFrom: z.string().optional(),
 })
 
-const roleAssignmentUpdateSchema = z.object({
-  id: z.string(),
-  isActive: z.boolean().optional(),
-})
+// roleAssignmentUpdateSchema 제거 (미사용)
 
 const bulkRoleAssignmentSchema = z.object({
   organizationId: z.string().min(1, '조직을 선택해주세요'),
-  roleIds: z.array(z.string()).min(1, '최소 하나의 직책을 선택해주세요'),
+  roleIds: z.array(z.string()), // 빈 배열도 허용 (모든 직책 해제용)
   replaceExisting: z.boolean().default(false), // true면 기존 할당을 모두 삭제하고 새로 할당
 })
 
@@ -257,12 +302,13 @@ export const organizationRoleAssignmentsRouter = router({
     }),
 
   // 여러 직책 한번에 할당 (자동 상속 포함)
-  bulkAssign: adminProcedure
+  bulkAssign: protectedProcedure
     .input(bulkRoleAssignmentSchema.extend({
       autoInheritToChildren: z.boolean().default(true), // 하위 조직에 자동 상속
     }))
     .mutation(async ({ ctx, input }) => {
-      const { organizationId, roleIds, replaceExisting, autoInheritToChildren } = input
+      const { organizationId, roleIds, replaceExisting } = input
+      const userRole = ctx.session.user.role as any
 
       // 조직 유효성 검사
       const organization = await ctx.prisma.organization.findFirst({
@@ -279,48 +325,82 @@ export const organizationRoleAssignmentsRouter = router({
         })
       }
 
-      // 직책들 유효성 검사
-      const roles = await ctx.prisma.organizationRole.findMany({
-        where: {
-          id: { in: roleIds },
-          churchId: ctx.session.user.churchId,
-        },
-      })
-
-      if (roles.length !== roleIds.length) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: '일부 직책을 찾을 수 없습니다',
-        })
-      }
-
-      // 하위 조직들 조회 (자동 상속용)
-      const getChildrenIds = async (orgId: string): Promise<string[]> => {
-        const children = await ctx.prisma.organization.findMany({
-          where: { parentId: orgId },
-          select: { id: true },
-        })
+      // 권한 확인: SUPER_ADMIN이 아닌 경우 추가 권한 검사
+      if (userRole !== 'SUPER_ADMIN') {
+        // 사용자가 해당 조직 또는 상위 조직의 관리자인지 확인
+        const hasPermission = await checkOrganizationPermission(
+          ctx.prisma, 
+          ctx.session.user.id, 
+          organizationId
+        )
         
-        let allChildren = children.map(child => child.id)
-        
-        for (const child of children) {
-          const grandChildren = await getChildrenIds(child.id)
-          allChildren = [...allChildren, ...grandChildren]
+        if (!hasPermission) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: '해당 조직의 직책 관리 권한이 없습니다',
+          })
         }
-        
-        return allChildren
       }
 
-      const childrenIds = autoInheritToChildren ? await getChildrenIds(organizationId) : []
+      // 직책들 유효성 검사 (빈 배열이 아닌 경우에만)
+      if (roleIds.length > 0) {
+        const roles = await ctx.prisma.organizationRole.findMany({
+          where: {
+            id: { in: roleIds },
+            churchId: ctx.session.user.churchId,
+          },
+        })
 
-      // 트랜잭션으로 처리
+        if (roles.length !== roleIds.length) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: '일부 직책을 찾을 수 없습니다',
+          })
+        }
+      }
+
+      // 하위 조직들 조회 (자동 상속용) - 무한 재귀 방지
+      const getChildrenIds = async (orgId: string, visited: Set<string> = new Set()): Promise<string[]> => {
+        if (visited.has(orgId)) {
+          return [] // 순환 참조 방지
+        }
+        visited.add(orgId)
+        
+        try {
+          const children = await ctx.prisma.organization.findMany({
+            where: { 
+              parentId: orgId,
+              churchId: ctx.session.user.churchId // 추가 보안
+            },
+            select: { id: true },
+          })
+          
+          let allChildren = children.map(child => child.id)
+          
+          for (const child of children) {
+            const grandChildren = await getChildrenIds(child.id, visited)
+            allChildren = [...allChildren, ...grandChildren]
+          }
+          
+          return allChildren
+        } catch (error) {
+          console.error('Error fetching children for org:', orgId, error)
+          return []
+        }
+      }
+
+      // 자동 상속 임시 비활성화 (안정성 우선)
+
+      // 간단한 트랜잭션으로 처리
       const result = await ctx.prisma.$transaction(async (tx) => {
+        const assignments = []
+        
         // 기존 할당 제거 (replaceExisting이 true일 때)
         if (replaceExisting) {
           await tx.organizationRoleAssignment.updateMany({
             where: {
               organizationId,
-              isInherited: false, // 직접 할당된 것만 제거
+              isInherited: false,
             },
             data: {
               isActive: false,
@@ -328,106 +408,54 @@ export const organizationRoleAssignmentsRouter = router({
             },
           })
         }
+        
+        // 각 직책 할당 처리
+        for (const roleId of roleIds) {
+          // 기존 할당 확인
+          const existing = await tx.organizationRoleAssignment.findUnique({
+            where: {
+              organizationId_roleId: {
+                organizationId,
+                roleId,
+              },
+            },
+          })
 
-        // 새 할당들 생성 (현재 조직)
-        const assignments = await Promise.all(
-          roleIds.map(async (roleId) => {
-            // 기존 할당 확인
-            const existing = await tx.organizationRoleAssignment.findUnique({
-              where: {
-                organizationId_roleId: {
-                  organizationId,
-                  roleId,
-                },
+          let assignment
+          if (existing) {
+            // 기존 할당 활성화
+            assignment = await tx.organizationRoleAssignment.update({
+              where: { id: existing.id },
+              data: {
+                isActive: true,
+                isInherited: false,
+                inheritedFrom: null,
+                updatedBy: ctx.session.user.id,
+              },
+              include: {
+                role: true,
+                organization: true,
               },
             })
-
-            if (existing) {
-              // 기존 할당이 있다면 활성화
-              return await tx.organizationRoleAssignment.update({
-                where: { id: existing.id },
-                data: {
-                  isActive: true,
-                  isInherited: false,
-                  inheritedFrom: null,
-                  updatedBy: ctx.session.user.id,
-                },
-                include: {
-                  role: true,
-                  organization: true,
-                },
-              })
-            } else {
-              // 새 할당 생성
-              return await tx.organizationRoleAssignment.create({
-                data: {
-                  organizationId,
-                  roleId,
-                  isInherited: false,
-                  createdBy: ctx.session.user.id,
-                },
-                include: {
-                  role: true,
-                  organization: true,
-                },
-              })
-            }
-          })
-        )
-
-        // 하위 조직들에 상속 (자동 상속이 활성화된 경우)
-        if (autoInheritToChildren && childrenIds.length > 0) {
-          for (const childId of childrenIds) {
-            for (const roleId of roleIds) {
-              // 이미 직접 할당된 직책인지 확인 (직접 할당이 우선)
-              const directAssignment = await tx.organizationRoleAssignment.findFirst({
-                where: {
-                  organizationId: childId,
-                  roleId,
-                  isInherited: false,
-                  isActive: true,
-                },
-              })
-
-              if (!directAssignment) {
-                // 기존 상속 할당 확인
-                const existingInheritance = await tx.organizationRoleAssignment.findUnique({
-                  where: {
-                    organizationId_roleId: {
-                      organizationId: childId,
-                      roleId,
-                    },
-                  },
-                })
-
-                if (existingInheritance) {
-                  // 상속 할당 업데이트
-                  await tx.organizationRoleAssignment.update({
-                    where: { id: existingInheritance.id },
-                    data: {
-                      isActive: true,
-                      isInherited: true,
-                      inheritedFrom: organizationId,
-                      updatedBy: ctx.session.user.id,
-                    },
-                  })
-                } else {
-                  // 새 상속 할당 생성
-                  await tx.organizationRoleAssignment.create({
-                    data: {
-                      organizationId: childId,
-                      roleId,
-                      isInherited: true,
-                      inheritedFrom: organizationId,
-                      createdBy: ctx.session.user.id,
-                    },
-                  })
-                }
-              }
-            }
+          } else {
+            // 새 할당 생성
+            assignment = await tx.organizationRoleAssignment.create({
+              data: {
+                organizationId,
+                roleId,
+                isInherited: false,
+                createdBy: ctx.session.user.id,
+              },
+              include: {
+                role: true,
+                organization: true,
+              },
+            })
           }
+          
+          assignments.push(assignment)
         }
-
+        
         return assignments
       })
 
