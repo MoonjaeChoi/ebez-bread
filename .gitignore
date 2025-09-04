@@ -76,4 +76,4 @@ prisma/schema.prisma.bak
 #netlify
 .netlify/
 .netlify/functions/
-netlify.toml
+.netlify.toml
