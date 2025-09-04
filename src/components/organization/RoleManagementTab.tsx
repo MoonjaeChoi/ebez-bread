@@ -379,13 +379,13 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
         .filter(a => a.isAssigned && !a.isInherited) // 직접 할당된 것만
         .map(a => a.roleId)
       
-      // bulkAssign으로 모든 직책 상태를 한번에 설정
+      // 1. 현재 조직에 직책 할당
       if (currentlyAssignedRoles.length > 0) {
         await bulkAssignMutation.mutateAsync({
           organizationId: selectedOrgId,
           roleIds: currentlyAssignedRoles,
           replaceExisting: true, // 기존 직접 할당을 모두 제거하고 새로 할당
-          autoInheritToChildren: false // 임시로 자동 상속 비활성화
+          autoInheritToChildren: false // 수동으로 하위 조직에 상속 처리
         })
       } else {
         // 모든 직책을 해제하는 경우
@@ -397,6 +397,15 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
         })
       }
       
+      // 2. 하위 조직에 직책 상속 (이미 직책이 있는 조직은 제외)
+      if (currentlyAssignedRoles.length > 0) {
+        console.log('🔄 하위 조직에 직책 상속 시작...')
+        const inheritedCount = await inheritRolesToChildren(selectedOrgId, currentlyAssignedRoles)
+        if (inheritedCount > 0) {
+          console.log(`✅ ${inheritedCount}개 하위 조직에 직책 상속 완료`)
+        }
+      }
+      
       // 데이터 새로고침
       await refetchAssignments()
       setHasUnsavedChanges(false)
@@ -406,6 +415,49 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // 하위 조직에 직책을 상속하는 함수
+  const inheritRolesToChildren = async (parentOrgId: string, roleIds: string[]): Promise<number> => {
+    const parentOrg = allOrganizations.find(org => org.id === parentOrgId)
+    if (!parentOrg?.children || parentOrg.children.length === 0) {
+      return 0
+    }
+
+    let inheritedCount = 0
+
+    // 하위 조직들을 재귀적으로 처리
+    const processChildren = async (children: Organization[]): Promise<number> => {
+      let count = 0
+      
+      for (const child of children) {
+        try {
+          // 모든 역할을 상속 (서버에서 기존 직책과 중복 처리)
+          await bulkAssignMutation.mutateAsync({
+            organizationId: child.id,
+            roleIds: roleIds,
+            replaceExisting: false, // 기존 직책 유지하면서 새로운 직책 추가
+            autoInheritToChildren: false // 재귀 호출로 직접 처리
+          })
+
+          console.log(`✅ 직책 상속: ${child.name}에 ${roleIds.length}개 직책 상속`)
+          count++
+
+          // 하위 조직의 하위 조직들도 재귀적으로 처리
+          if (child.children && child.children.length > 0) {
+            count += await processChildren(child.children)
+          }
+        } catch (error) {
+          console.error(`하위 조직 ${child.name}에 직책 상속 중 오류:`, error)
+          // 개별 조직 오류는 전체 프로세스를 중단하지 않음
+        }
+      }
+      
+      return count
+    }
+
+    inheritedCount = await processChildren(parentOrg.children)
+    return inheritedCount
   }
 
   const handleResetChanges = () => {
@@ -577,7 +629,8 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
                 </CardTitle>
                 <CardDescription>
                   이 조직에서 사용할 직책을 선택하세요. 
-                  상위 조직의 직책은 자동으로 상속되며, 새로 선택한 직책은 하위 조직에 상속됩니다.
+                  상위 조직의 직책은 자동으로 상속되며, <strong>새로 선택한 직책은 하위 조직에 자동으로 상속됩니다.</strong>
+                  (단, 하위 조직에 이미 같은 직책이 있으면 변경되지 않습니다.)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

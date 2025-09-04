@@ -200,21 +200,23 @@ async function updateChildrenLevels(parentId: string, newLevel: OrganizationLeve
     [OrganizationLevel.LEVEL_1]: 1,
     [OrganizationLevel.LEVEL_2]: 2,
     [OrganizationLevel.LEVEL_3]: 3,
-    [OrganizationLevel.LEVEL_4]: 4
+    [OrganizationLevel.LEVEL_4]: 4,
+    [OrganizationLevel.LEVEL_5]: 5
   }
   
   const reverseLevelMap = {
     1: OrganizationLevel.LEVEL_1,
     2: OrganizationLevel.LEVEL_2,
     3: OrganizationLevel.LEVEL_3,
-    4: OrganizationLevel.LEVEL_4
+    4: OrganizationLevel.LEVEL_4,
+    5: OrganizationLevel.LEVEL_5
   }
   
   for (const child of children) {
     const currentLevelNum = levelMap[child.level]
     const newLevelNum = levelMap[newLevel]
     
-    if (currentLevelNum && newLevelNum && newLevelNum <= 4) {
+    if (currentLevelNum && newLevelNum && newLevelNum <= 5) {
       console.log(`    - 하위 조직 ${child.level} → ${newLevel}: ${child.name}`)
       
       try {
@@ -225,7 +227,7 @@ async function updateChildrenLevels(parentId: string, newLevel: OrganizationLeve
         
         // 재귀적으로 하위의 하위 조직도 업데이트
         const nextLevelNum = newLevelNum + 1
-        if (nextLevelNum <= 4) {
+        if (nextLevelNum <= 5) {
           const nextLevel = reverseLevelMap[nextLevelNum as keyof typeof reverseLevelMap]
           if (nextLevel) {
             await updateChildrenLevels(child.id, nextLevel)

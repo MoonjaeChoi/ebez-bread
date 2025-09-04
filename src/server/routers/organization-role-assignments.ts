@@ -805,4 +805,70 @@ export const organizationRoleAssignmentsRouter = router({
           Math.round(((directAssignments + inheritedAssignments) / totalChurchRoles) * 100) : 0,
       }
     }),
+
+  // 직책이 할당된 조직들만 조회
+  getOrganizationsWithRoles: protectedProcedure
+    .input(z.object({
+      includeInherited: z.boolean().default(true),
+      includeInactive: z.boolean().default(false)
+    }))
+    .query(async ({ ctx, input }) => {
+      const { includeInherited, includeInactive } = input
+
+      // 직책이 할당된 조직 ID 목록을 먼저 가져옴
+      const assignedOrganizationIds = await ctx.prisma.organizationRoleAssignment.findMany({
+        where: {
+          organization: {
+            churchId: ctx.session.user.churchId,
+          },
+          ...(includeInactive ? {} : { isActive: true }),
+          ...(includeInherited ? {} : { isInherited: false }),
+        },
+        select: {
+          organizationId: true,
+        },
+        distinct: ['organizationId'],
+      })
+
+      if (assignedOrganizationIds.length === 0) {
+        return []
+      }
+
+      const orgIds = assignedOrganizationIds.map(item => item.organizationId)
+
+      // 해당 조직들의 전체 정보를 계층구조로 가져옴
+      const organizations = await ctx.prisma.organization.findMany({
+        where: {
+          id: { in: orgIds },
+          churchId: ctx.session.user.churchId,
+        },
+        include: {
+          children: {
+            where: {
+              isActive: true,
+            },
+            orderBy: [
+              { sortOrder: 'asc' },
+              { name: 'asc' },
+            ],
+          },
+          _count: {
+            select: {
+              organizationMemberships: {
+                where: {
+                  isActive: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: [
+          { level: 'asc' },
+          { sortOrder: 'asc' },
+          { name: 'asc' },
+        ],
+      })
+
+      return organizations
+    }),
 })

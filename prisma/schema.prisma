@@ -65,6 +65,7 @@ model User {
   responsibleOrganizations Organization[]       @relation("OrganizationResponsible")
   createdOrganizations     Organization[]       @relation("OrganizationCreatedBy")
   updatedOrganizations     Organization[]       @relation("OrganizationUpdatedBy")
+  membershipHistoryEntries OrganizationMembershipHistory[]
 
   @@map("users")
 }
@@ -551,6 +552,7 @@ model OrganizationMembership {
   member         Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   role           OrganizationRole? @relation(fields: [roleId], references: [id])
+  history        OrganizationMembershipHistory[]
 
   @@unique([memberId, organizationId, isActive])
   @@index([memberId, isActive])
@@ -558,6 +560,24 @@ model OrganizationMembership {
   @@index([roleId])
   @@index([joinDate])
   @@map("organization_memberships")
+}
+
+model OrganizationMembershipHistory {
+  id             String                     @id @default(cuid())
+  membershipId   String
+  changeType     MembershipChangeType
+  previousValue  String?                    // JSON format for previous values
+  newValue       String?                    // JSON format for new values
+  reason         String?
+  createdAt      DateTime                   @default(now())
+  createdById    String
+  membership     OrganizationMembership     @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  createdBy      User                       @relation(fields: [createdById], references: [id])
+  
+  @@index([membershipId])
+  @@index([changeType])
+  @@index([createdAt])
+  @@map("organization_membership_history")
 }
 
 model OrganizationRoleAssignment {
@@ -780,4 +800,15 @@ enum OrganizationLevel {
   LEVEL_3
   LEVEL_4
   LEVEL_5
+}
+
+enum MembershipChangeType {
+  ROLE_CHANGED
+  STATUS_CHANGED
+  PRIMARY_CHANGED
+  JOIN_DATE_CHANGED
+  END_DATE_CHANGED
+  NOTES_CHANGED
+  ACTIVATED
+  DEACTIVATED
 }

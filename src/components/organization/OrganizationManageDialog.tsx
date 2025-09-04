@@ -101,6 +101,7 @@ export function OrganizationManageDialog({ children, onSuccess }: OrganizationMa
       case 'LEVEL_2': return '부서/팀'
       case 'LEVEL_3': return '소그룹/모임'
       case 'LEVEL_4': return '세부조직'
+      case 'LEVEL_5': return '개별단위'
       default: return '조직'
     }
   }
@@ -110,7 +111,8 @@ export function OrganizationManageDialog({ children, onSuccess }: OrganizationMa
       { value: 'LEVEL_1', label: getLevelLabel('LEVEL_1') },
       { value: 'LEVEL_2', label: getLevelLabel('LEVEL_2') },
       { value: 'LEVEL_3', label: getLevelLabel('LEVEL_3') },
-      { value: 'LEVEL_4', label: getLevelLabel('LEVEL_4') }
+      { value: 'LEVEL_4', label: getLevelLabel('LEVEL_4') },
+      { value: 'LEVEL_5', label: getLevelLabel('LEVEL_5') }
     ]
     return levels
   }
@@ -126,7 +128,8 @@ export function OrganizationManageDialog({ children, onSuccess }: OrganizationMa
       'LEVEL_1': null, // LEVEL_1은 부모가 없음
       'LEVEL_2': 'LEVEL_1',
       'LEVEL_3': 'LEVEL_2', 
-      'LEVEL_4': 'LEVEL_3'
+      'LEVEL_4': 'LEVEL_3',
+      'LEVEL_5': 'LEVEL_4'
     }
     
     const parentLevel = levelMap[selectedLevel]

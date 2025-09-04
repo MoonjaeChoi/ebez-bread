@@ -412,12 +412,7 @@ export default function OrganizationMembershipsPage() {
 
         {/* 구성원 관리 탭 */}
         <TabsContent value="memberships" className="space-y-6">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              구성원 관리 기능은 개발 중입니다. 현재는 구성원 추가 버튼을 통해 새로운 구성원을 추가할 수 있습니다.
-            </AlertDescription>
-          </Alert>
+          <OrganizationMembershipList />
         </TabsContent>
       </Tabs>
 
@@ -428,6 +423,7 @@ export default function OrganizationMembershipsPage() {
           onClose={() => setShowForm(false)}
           organizations={organizations || []}
           roles={roles || []}
+          filterByRoleAssignments={true}
         />
       )}
     </div>

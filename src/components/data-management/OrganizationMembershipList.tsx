@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import { 
   Users, 
   Crown, 
@@ -20,9 +22,14 @@ import {
   Phone,
   Mail,
   Calendar,
-  Info
+  Info,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  RefreshCw
 } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
+import { OrganizationMemberEditDialog } from './OrganizationMemberEditDialog'
 
 interface Organization {
   id: string
@@ -67,22 +74,54 @@ export function OrganizationMembershipList({
   organizationId,
   memberId
 }: OrganizationMembershipListProps) {
+  // 검색 및 필터 상태
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrganization, setSelectedOrganization] = useState(organizationId || '')
-  const [showInactive, setShowInactive] = useState(false)
+  const [selectedRole, setSelectedRole] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active')
   const [selectedMembership, setSelectedMembership] = useState<OrganizationMembership | null>(null)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  
+  // 디바운스된 검색어
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm)
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+      setCurrentPage(1) // 검색 시 첫 페이지로 리셋
+    }, 300)
+    
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
-  // 조직별 멤버십 목록 조회
-  const { data: memberships, isLoading, error } = trpc.organizationMemberships.getByOrganization.useQuery({
+  // 조직별 멤버십 목록 조회 (페이지네이션 지원)
+  const { data: membershipData, isLoading, error, refetch } = trpc.organizationMemberships.getByOrganizationPaginated.useQuery({
     organizationId: selectedOrganization,
-    includeInactive: showInactive
+    page: currentPage,
+    limit: pageSize,
+    search: debouncedSearch || undefined,
+    roleFilter: selectedRole || undefined,
+    statusFilter: statusFilter
   }, {
-    enabled: !!selectedOrganization
+    enabled: !!selectedOrganization,
+    keepPreviousData: true
   })
+
+  const memberships = membershipData?.data || []
+  const pagination = membershipData?.pagination
 
   // 조직 목록 조회
   const { data: organizations } = trpc.organizations.getHierarchy.useQuery({
     includeInactive: false
+  })
+
+  // 직책 목록 조회
+  const { data: roles } = trpc.organizationRoles.getAll.useQuery({
+    includeStats: false
   })
 
   const flattenOrganizations = (orgs: any[], depth = 0): Array<any & { depth: number }> => {
@@ -97,18 +136,41 @@ export function OrganizationMembershipList({
 
   const flatOrganizations = organizations ? flattenOrganizations(organizations) : []
 
-  // 검색 필터링
-  const filteredMemberships = memberships?.filter(membership => {
-    if (!searchTerm) return true
-    
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      membership.member.name.toLowerCase().includes(searchLower) ||
-      membership.member.phone?.toLowerCase().includes(searchLower) ||
-      membership.member.email?.toLowerCase().includes(searchLower) ||
-      membership.role?.name.toLowerCase().includes(searchLower)
-    )
-  }) || []
+  // 필터 및 검색 초기화 함수
+  const handleResetFilters = () => {
+    setSearchTerm('')
+    setSelectedRole('')
+    setStatusFilter('active')
+    setCurrentPage(1)
+  }
+
+  // 조직 변경 시 필터 초기화
+  const handleOrganizationChange = (orgId: string) => {
+    setSelectedOrganization(orgId)
+    setCurrentPage(1)
+  }
+
+  // 페이지 변경
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  // 구성원 편집
+  const handleEditMember = (membership: OrganizationMembership) => {
+    setSelectedMembership(membership)
+    setShowEditDialog(true)
+  }
+
+  // 편집 완료 후
+  const handleEditSuccess = () => {
+    refetch() // 목록 새로고침
+  }
+
+  // 편집 모달 닫기
+  const handleCloseEditDialog = () => {
+    setShowEditDialog(false)
+    setSelectedMembership(null)
+  }
 
   const getLevelColor = (orgLevel: string) => {
     switch (orgLevel) {
@@ -116,6 +178,7 @@ export function OrganizationMembershipList({
       case 'LEVEL_2': return 'text-green-600'
       case 'LEVEL_3': return 'text-orange-600'
       case 'LEVEL_4': return 'text-purple-600'
+      case 'LEVEL_5': return 'text-pink-600'
       default: return 'text-gray-600'
     }
   }
@@ -141,20 +204,32 @@ export function OrganizationMembershipList({
 
   return (
     <div className="space-y-6">
-      {/* 필터 및 검색 */}
+      {/* 고급 검색 및 필터 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            검색 및 필터
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              검색 및 필터
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={handleResetFilters}>
+                <X className="h-4 w-4 mr-1" />
+                초기화
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4 mr-1" />
+                새로고침
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 조직 선택 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">조직 선택</label>
-              <Select value={selectedOrganization} onValueChange={setSelectedOrganization}>
+              <Label className="text-sm font-medium">조직 선택</Label>
+              <Select value={selectedOrganization} onValueChange={handleOrganizationChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="조직을 선택하세요" />
                 </SelectTrigger>
@@ -179,35 +254,110 @@ export function OrganizationMembershipList({
 
             {/* 검색 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">구성원 검색</label>
+              <Label className="text-sm font-medium">구성원 검색</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="이름, 전화번호, 직책으로 검색..."
+                  placeholder="이름, 전화번호, 이메일, 직책..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1 h-7 w-7 p-0"
+                    onClick={() => setSearchTerm('')}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
 
-            {/* 옵션 */}
+            {/* 직책 필터 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">표시 옵션</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="showInactive"
-                  checked={showInactive}
-                  onChange={(e) => setShowInactive(e.target.checked)}
-                  className="rounded"
-                />
-                <label htmlFor="showInactive" className="text-sm">
-                  비활성 구성원 포함
-                </label>
-              </div>
+              <Label className="text-sm font-medium">직책 필터</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="모든 직책" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  <SelectItem value="">모든 직책</SelectItem>
+                  {roles?.filter(role => role.isActive).map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <div className="flex items-center gap-2">
+                        {role.isLeadership && (
+                          <Crown className="h-3 w-3 text-amber-500" />
+                        )}
+                        <span>{role.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          Lv.{role.level}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 상태 필터 */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">상태 필터</Label>
+              <Select value={statusFilter} onValueChange={(value: 'active' | 'inactive' | 'all') => setStatusFilter(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">활성 구성원만</SelectItem>
+                  <SelectItem value="inactive">비활성 구성원만</SelectItem>
+                  <SelectItem value="all">모든 구성원</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
+
+          {/* 페이지 크기 설정 */}
+          <div className="flex items-center gap-4">
+            <Label className="text-sm font-medium">페이지당 항목 수:</Label>
+            <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(parseInt(value))}>
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 활성화된 필터 표시 */}
+          {(searchTerm || selectedRole || statusFilter !== 'active') && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium">활성 필터:</span>
+              {searchTerm && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  검색: {searchTerm}
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setSearchTerm('')} />
+                </Badge>
+              )}
+              {selectedRole && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  직책: {roles?.find(r => r.id === selectedRole)?.name}
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedRole('')} />
+                </Badge>
+              )}
+              {statusFilter !== 'active' && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  상태: {statusFilter === 'inactive' ? '비활성' : '모든 상태'}
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setStatusFilter('active')} />
+                </Badge>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -215,13 +365,31 @@ export function OrganizationMembershipList({
       {selectedOrganization ? (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              구성원 목록
-            </CardTitle>
-            <CardDescription>
-              {filteredMemberships.length}명의 구성원이 있습니다
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  구성원 목록
+                </CardTitle>
+                <CardDescription>
+                  {pagination ? (
+                    <>
+                      전체 {pagination.totalCount}명 중 {((pagination.currentPage - 1) * pagination.limit) + 1}-
+                      {Math.min(pagination.currentPage * pagination.limit, pagination.totalCount)}명 표시
+                    </>
+                  ) : (
+                    '구성원을 불러오는 중...'
+                  )}
+                </CardDescription>
+              </div>
+              
+              {/* 페이지네이션 정보 */}
+              {pagination && pagination.totalPages > 1 && (
+                <div className="text-sm text-muted-foreground">
+                  {pagination.currentPage} / {pagination.totalPages} 페이지
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -229,19 +397,22 @@ export function OrganizationMembershipList({
                 <Users className="h-8 w-8 animate-pulse text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500">구성원 목록을 불러오는 중...</p>
               </div>
-            ) : filteredMemberships.length === 0 ? (
+            ) : memberships.length === 0 ? (
               <div className="text-center py-8">
                 <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-500 mb-2">
                   구성원이 없습니다
                 </h3>
                 <p className="text-gray-400">
-                  {searchTerm ? '검색 조건에 맞는 구성원이 없습니다' : '아직 등록된 구성원이 없습니다'}
+                  {debouncedSearch || selectedRole || statusFilter !== 'active'
+                    ? '검색 조건에 맞는 구성원이 없습니다' 
+                    : '아직 등록된 구성원이 없습니다'}
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredMemberships.map((membership) => (
+              <>
+                <div className="space-y-4">
+                  {memberships.map((membership) => (
                   <div
                     key={membership.id}
                     className={`p-4 border rounded-lg transition-colors ${
@@ -317,17 +488,91 @@ export function OrganizationMembershipList({
 
                       {/* 액션 버튼 */}
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditMember(membership)}
+                          title="구성원 정보 수정"
+                        >
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" title="추가 작업">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+
+                {/* 페이지네이션 */}
+                {pagination && pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={!pagination.hasPreviousPage}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        이전
+                      </Button>
+                      
+                      <div className="flex items-center gap-1">
+                        {/* 페이지 번호 버튼들 */}
+                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                          const startPage = Math.max(1, currentPage - 2)
+                          const pageNum = startPage + i
+                          
+                          if (pageNum > pagination.totalPages) return null
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handlePageChange(pageNum)}
+                              className="w-10 h-8"
+                            >
+                              {pageNum}
+                            </Button>
+                          )
+                        })}
+                        
+                        {pagination.totalPages > 5 && currentPage < pagination.totalPages - 2 && (
+                          <>
+                            <span className="px-2">...</span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePageChange(pagination.totalPages)}
+                              className="w-10 h-8"
+                            >
+                              {pagination.totalPages}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={!pagination.hasNextPage}
+                      >
+                        다음
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                    
+                    <div className="text-sm text-muted-foreground">
+                      {pagination.totalCount}개 항목 중 {((currentPage - 1) * pageSize) + 1}-
+                      {Math.min(currentPage * pageSize, pagination.totalCount)}개 표시
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -346,6 +591,14 @@ export function OrganizationMembershipList({
           </CardContent>
         </Card>
       )}
+
+      {/* 구성원 편집 모달 */}
+      <OrganizationMemberEditDialog
+        open={showEditDialog}
+        onClose={handleCloseEditDialog}
+        membership={selectedMembership}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   )
 }

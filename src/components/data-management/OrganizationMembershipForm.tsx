@@ -76,6 +76,7 @@ interface OrganizationMembershipFormProps {
   organizations: Organization[]
   roles: Role[]
   onSuccess?: () => void
+  filterByRoleAssignments?: boolean // 직책이 할당된 조직만 필터링할지 여부
 }
 
 export function OrganizationMembershipForm({
@@ -83,7 +84,8 @@ export function OrganizationMembershipForm({
   onClose,
   organizations,
   roles,
-  onSuccess
+  onSuccess,
+  filterByRoleAssignments = false
 }: OrganizationMembershipFormProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null)
@@ -112,6 +114,14 @@ export function OrganizationMembershipForm({
     enabled: searchTerm.length >= 2
   })
 
+  // 직책이 할당된 조직들만 조회 (필터링 옵션이 활성화된 경우)
+  const { data: organizationsWithRoles } = trpc.organizationRoleAssignments.getOrganizationsWithRoles.useQuery({
+    includeInherited: true,
+    includeInactive: false
+  }, {
+    enabled: filterByRoleAssignments
+  })
+
   // 조직 멤버십 생성
   const createMembershipMutation = trpc.organizationMemberships.create.useMutation({
     onSuccess: () => {
@@ -128,6 +138,11 @@ export function OrganizationMembershipForm({
 
   const watchedValues = watch()
 
+  // 사용할 조직 목록 결정 (필터링 여부에 따라)
+  const sourceOrganizations = filterByRoleAssignments && organizationsWithRoles 
+    ? organizationsWithRoles 
+    : organizations
+
   // 조직 트리를 평면화
   const flattenOrganizations = (orgs: Organization[], depth = 0): Array<Organization & { depth: number }> => {
     return orgs.reduce((acc, org) => {
@@ -139,7 +154,7 @@ export function OrganizationMembershipForm({
     }, [] as Array<Organization & { depth: number }>)
   }
 
-  const flatOrganizations = flattenOrganizations(organizations)
+  const flatOrganizations = flattenOrganizations(sourceOrganizations)
 
   // 리더십 직책과 일반 직책 분리
   const leadershipRoles = roles.filter(r => r.isLeadership).sort((a, b) => b.level - a.level)
@@ -186,6 +201,7 @@ export function OrganizationMembershipForm({
       case 'LEVEL_2': return 'text-green-600'
       case 'LEVEL_3': return 'text-orange-600'
       case 'LEVEL_4': return 'text-purple-600'
+      case 'LEVEL_5': return 'text-pink-600'
       default: return 'text-gray-600'
     }
   }
