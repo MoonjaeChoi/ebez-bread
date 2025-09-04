@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Building2, Plus, AlertTriangle, Loader2, X } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
@@ -113,7 +113,7 @@ export function WorkingModal({ children, onSuccess }: WorkingModalProps) {
         left: '0px',
         width: '100vw',
         height: '100vh',
-        zIndex: 99999,
+        zIndex: 71,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
         alignItems: 'center',
@@ -225,22 +225,34 @@ export function WorkingModal({ children, onSuccess }: WorkingModalProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <Label htmlFor="working-level">조직 레벨 *</Label>
-              <Select 
-                value={formData.level} 
+              <Label>조직 레벨 *</Label>
+              <RadioGroup
+                value={formData.level}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, level: value }))}
                 disabled={createOrganization.isPending}
+                style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="조직 레벨을 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LEVEL_1">LEVEL_1 - 본부/교구</SelectItem>
-                  <SelectItem value="LEVEL_2">LEVEL_2 - 부서/팀</SelectItem>
-                  <SelectItem value="LEVEL_3">LEVEL_3 - 소그룹/모임</SelectItem>
-                  <SelectItem value="LEVEL_4">LEVEL_4 - 세부조직</SelectItem>
-                </SelectContent>
-              </Select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RadioGroupItem value="LEVEL_1" id="working-level1" />
+                  <Label htmlFor="working-level1" style={{ cursor: 'pointer', margin: 0 }}>LEVEL_1 - 본부/교구</Label>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RadioGroupItem value="LEVEL_2" id="working-level2" />
+                  <Label htmlFor="working-level2" style={{ cursor: 'pointer', margin: 0 }}>LEVEL_2 - 부서/팀</Label>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RadioGroupItem value="LEVEL_3" id="working-level3" />
+                  <Label htmlFor="working-level3" style={{ cursor: 'pointer', margin: 0 }}>LEVEL_3 - 소그룹/모임</Label>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RadioGroupItem value="LEVEL_4" id="working-level4" />
+                  <Label htmlFor="working-level4" style={{ cursor: 'pointer', margin: 0 }}>LEVEL_4 - 세부조직</Label>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <RadioGroupItem value="LEVEL_5" id="working-level5" />
+                  <Label htmlFor="working-level5" style={{ cursor: 'pointer', margin: 0 }}>LEVEL_5 - 개별단위</Label>
+                </div>
+              </RadioGroup>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

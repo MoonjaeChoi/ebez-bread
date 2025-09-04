@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Building2, Plus, AlertTriangle, Loader2 } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
@@ -81,7 +81,7 @@ export function SimpleOrganizationDialog({ children, onSuccess }: SimpleOrganiza
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md z-[60]">
+      <DialogContent className="sm:max-w-md z-40">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
@@ -124,22 +124,34 @@ export function SimpleOrganizationDialog({ children, onSuccess }: SimpleOrganiza
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="level">조직 레벨 *</Label>
-              <Select 
-                value={formData.level} 
+              <Label>조직 레벨 *</Label>
+              <RadioGroup
+                value={formData.level}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, level: value }))}
                 disabled={createOrganization.isPending}
+                className="grid grid-cols-1 gap-2"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="조직 레벨을 선택하세요" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LEVEL_1">LEVEL_1 - 본부/교구</SelectItem>
-                  <SelectItem value="LEVEL_2">LEVEL_2 - 부서/팀</SelectItem>
-                  <SelectItem value="LEVEL_3">LEVEL_3 - 소그룹/모임</SelectItem>
-                  <SelectItem value="LEVEL_4">LEVEL_4 - 세부조직</SelectItem>
-                </SelectContent>
-              </Select>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="LEVEL_1" id="level1" />
+                  <Label htmlFor="level1" className="cursor-pointer">LEVEL_1 - 본부/교구</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="LEVEL_2" id="level2" />
+                  <Label htmlFor="level2" className="cursor-pointer">LEVEL_2 - 부서/팀</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="LEVEL_3" id="level3" />
+                  <Label htmlFor="level3" className="cursor-pointer">LEVEL_3 - 소그룹/모임</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="LEVEL_4" id="level4" />
+                  <Label htmlFor="level4" className="cursor-pointer">LEVEL_4 - 세부조직</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="LEVEL_5" id="level5" />
+                  <Label htmlFor="level5" className="cursor-pointer">LEVEL_5 - 개별단위</Label>
+                </div>
+              </RadioGroup>
             </div>
 
             <div className="grid gap-2">

@@ -175,7 +175,7 @@ export function DebugModal({ children, onSuccess }: DebugModalProps) {
         left: '0px',
         width: '100vw',
         height: '100vh',
-        zIndex: 99999,
+        zIndex: 74,
         backgroundColor: 'rgba(255, 0, 0, 0.8)', // 빨간색으로 확실히 보이게
         display: 'flex',
         alignItems: 'center',

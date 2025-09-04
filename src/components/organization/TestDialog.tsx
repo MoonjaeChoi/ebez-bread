@@ -26,13 +26,13 @@ export function TestDialog({ children }: TestDialogProps) {
         {children}
       </DialogTrigger>
       <DialogContent 
-        className="sm:max-w-md z-[9999] bg-white border-2 border-red-500" 
+        className="sm:max-w-md z-[71] bg-white border-2 border-red-500" 
         style={{ 
           position: 'fixed' as const,
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          zIndex: 9999,
+          zIndex: 71,
           backgroundColor: 'white',
           display: 'block',
           visibility: 'visible' as const,
