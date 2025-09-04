@@ -241,14 +241,14 @@ export function OrganizationMemberEditDialog({
               직책
             </Label>
             <Select 
-              value={watchedValues.roleId || ''} 
-              onValueChange={(value) => setValue('roleId', value || undefined)}
+              value={watchedValues.roleId || '__NO_ROLE__'} 
+              onValueChange={(value) => setValue('roleId', value === '__NO_ROLE__' ? undefined : value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="직책을 선택하세요 (없으면 일반 구성원)" />
               </SelectTrigger>
               <SelectContent className="max-h-60">
-                <SelectItem value="">일반 구성원 (직책 없음)</SelectItem>
+                <SelectItem value="__NO_ROLE__">일반 구성원 (직책 없음)</SelectItem>
                 
                 {leadershipRoles.length > 0 && (
                   <>

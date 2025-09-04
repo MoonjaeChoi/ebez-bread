@@ -77,7 +77,7 @@ export function OrganizationMembershipList({
   // 검색 및 필터 상태
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrganization, setSelectedOrganization] = useState(organizationId || '')
-  const [selectedRole, setSelectedRole] = useState('')
+  const [selectedRole, setSelectedRole] = useState('__ALL_ROLES__')
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active')
   const [selectedMembership, setSelectedMembership] = useState<OrganizationMembership | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -104,7 +104,7 @@ export function OrganizationMembershipList({
     page: currentPage,
     limit: pageSize,
     search: debouncedSearch || undefined,
-    roleFilter: selectedRole || undefined,
+    roleFilter: selectedRole === '__ALL_ROLES__' ? undefined : selectedRole,
     statusFilter: statusFilter
   }, {
     enabled: !!selectedOrganization,
@@ -139,7 +139,7 @@ export function OrganizationMembershipList({
   // 필터 및 검색 초기화 함수
   const handleResetFilters = () => {
     setSearchTerm('')
-    setSelectedRole('')
+    setSelectedRole('__ALL_ROLES__')
     setStatusFilter('active')
     setCurrentPage(1)
   }
@@ -284,7 +284,7 @@ export function OrganizationMembershipList({
                   <SelectValue placeholder="모든 직책" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  <SelectItem value="">모든 직책</SelectItem>
+                  <SelectItem value="__ALL_ROLES__">모든 직책</SelectItem>
                   {roles?.filter(role => role.isActive).map((role) => (
                     <SelectItem key={role.id} value={role.id}>
                       <div className="flex items-center gap-2">
@@ -335,7 +335,7 @@ export function OrganizationMembershipList({
           </div>
 
           {/* 활성화된 필터 표시 */}
-          {(searchTerm || selectedRole || statusFilter !== 'active') && (
+          {(searchTerm || selectedRole !== '__ALL_ROLES__' || statusFilter !== 'active') && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium">활성 필터:</span>
               {searchTerm && (
@@ -344,10 +344,10 @@ export function OrganizationMembershipList({
                   <X className="h-3 w-3 cursor-pointer" onClick={() => setSearchTerm('')} />
                 </Badge>
               )}
-              {selectedRole && (
+              {selectedRole !== '__ALL_ROLES__' && (
                 <Badge variant="secondary" className="flex items-center gap-1">
                   직책: {roles?.find(r => r.id === selectedRole)?.name}
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedRole('')} />
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setSelectedRole('__ALL_ROLES__')} />
                 </Badge>
               )}
               {statusFilter !== 'active' && (
@@ -404,7 +404,7 @@ export function OrganizationMembershipList({
                   구성원이 없습니다
                 </h3>
                 <p className="text-gray-400">
-                  {debouncedSearch || selectedRole || statusFilter !== 'active'
+                  {debouncedSearch || selectedRole !== '__ALL_ROLES__' || statusFilter !== 'active'
                     ? '검색 조건에 맞는 구성원이 없습니다' 
                     : '아직 등록된 구성원이 없습니다'}
                 </p>
