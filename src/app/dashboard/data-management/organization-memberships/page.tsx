@@ -23,8 +23,9 @@ import {
 } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
 import { OrganizationMembershipForm } from '@/components/data-management/OrganizationMembershipForm'
-import { OrganizationMembershipList } from '@/components/data-management/OrganizationMembershipList'
+import { OptimizedOrganizationMembershipList } from '@/components/data-management/optimized/OptimizedOrganizationMembershipList'
 import { RoleManagementTab } from '@/components/organization/RoleManagementTab'
+import { MembershipErrorBoundary, ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 // 직책 그룹 정의
 const ROLE_GROUPS = [
@@ -224,7 +225,8 @@ export default function OrganizationMembershipsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <ErrorBoundary>
+      <div className="container mx-auto p-6 max-w-7xl">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -412,7 +414,9 @@ export default function OrganizationMembershipsPage() {
 
         {/* 구성원 관리 탭 */}
         <TabsContent value="memberships" className="space-y-6">
-          <OrganizationMembershipList />
+          <MembershipErrorBoundary>
+            <OptimizedOrganizationMembershipList />
+          </MembershipErrorBoundary>
         </TabsContent>
       </Tabs>
 
@@ -426,6 +430,7 @@ export default function OrganizationMembershipsPage() {
           filterByRoleAssignments={true}
         />
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   )
 }

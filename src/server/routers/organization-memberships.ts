@@ -1212,4 +1212,282 @@ export const organizationMembershipsRouter = router({
         },
       }
     }),
+
+  // 일괄 가져오기
+  bulkImport: adminProcedure
+    .input(z.object({
+      data: z.array(z.object({
+        memberName: z.string().min(1),
+        memberPhone: z.string().optional(),
+        memberEmail: z.string().email().optional(),
+        organizationName: z.string().min(1),
+        organizationCode: z.string().optional(),
+        roleName: z.string().optional(),
+        joinDate: z.string().or(z.date()),
+        endDate: z.string().optional().or(z.date().optional()),
+        isActive: z.string().default('활성'),
+        memo: z.string().optional(),
+      })),
+      createMissingEntities: z.boolean().default(true), // 누락된 구성원/조직/직책 자동 생성 여부
+      reason: z.string().default('Excel 일괄 가져오기')
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { data, createMissingEntities, reason } = input
+      const churchId = ctx.session.user.churchId
+      const importResults: Array<{
+        success: boolean;
+        membershipId?: string;
+        memberName?: string;
+        organizationName?: string;
+        action?: 'created' | 'updated';
+        error?: string;
+        data?: any;
+      }> = []
+      
+      // 트랜잭션으로 일괄 처리
+      const result = await ctx.prisma.$transaction(async (tx) => {
+        for (const item of data) {
+          try {
+            // 날짜 처리
+            const joinDate = typeof item.joinDate === 'string' 
+              ? new Date(item.joinDate)
+              : item.joinDate
+            
+            const endDate = item.endDate 
+              ? (typeof item.endDate === 'string' ? new Date(item.endDate) : item.endDate)
+              : null
+
+            // 1. 구성원 찾기 또는 생성
+            let member = await tx.member.findFirst({
+              where: {
+                churchId,
+                OR: [
+                  { name: item.memberName },
+                  ...(item.memberPhone ? [{ phone: item.memberPhone }] : []),
+                  ...(item.memberEmail ? [{ email: item.memberEmail }] : [])
+                ]
+              }
+            })
+
+            if (!member) {
+              if (createMissingEntities) {
+                member = await tx.member.create({
+                  data: {
+                    churchId,
+                    name: item.memberName,
+                    phone: item.memberPhone || null,
+                    email: item.memberEmail || null,
+                    status: 'ACTIVE',
+                  }
+                })
+              } else {
+                importResults.push({
+                  success: false,
+                  error: `구성원 '${item.memberName}'을 찾을 수 없습니다.`,
+                  data: item
+                })
+                continue
+              }
+            }
+
+            // 2. 조직 찾기 또는 생성
+            let organization = await tx.organization.findFirst({
+              where: {
+                churchId,
+                OR: [
+                  { name: item.organizationName },
+                  ...(item.organizationCode ? [{ code: item.organizationCode }] : [])
+                ]
+              }
+            })
+
+            if (!organization) {
+              if (createMissingEntities) {
+                // 새 조직 코드 생성
+                const newCode = item.organizationCode || 
+                  item.organizationName.replace(/\s+/g, '').toUpperCase().slice(0, 10)
+                
+                organization = await tx.organization.create({
+                  data: {
+                    churchId,
+                    name: item.organizationName,
+                    code: newCode,
+                    level: 'LEVEL_5', // 기본 레벨
+                    isActive: true,
+                  }
+                })
+              } else {
+                importResults.push({
+                  success: false,
+                  error: `조직 '${item.organizationName}'을 찾을 수 없습니다.`,
+                  data: item
+                })
+                continue
+              }
+            }
+
+            // 3. 직책 찾기 또는 생성
+            let role = null
+            if (item.roleName && item.roleName.trim() !== '') {
+              // 조직에 할당된 직책 찾기
+              const roleAssignment = await tx.organizationRoleAssignment.findFirst({
+                where: {
+                  organizationId: organization.id,
+                  role: {
+                    name: item.roleName,
+                    churchId
+                  },
+                  isActive: true
+                },
+                include: {
+                  role: true
+                }
+              })
+              role = roleAssignment?.role || null
+
+              if (!role && createMissingEntities) {
+                // 새 직책 생성
+                role = await tx.organizationRole.create({
+                  data: {
+                    churchId,
+                    name: item.roleName,
+                    level: 1,
+                    isLeadership: false,
+                    isActive: true,
+                  }
+                })
+                
+                // 조직에 직책 할당
+                await tx.organizationRoleAssignment.create({
+                  data: {
+                    organizationId: organization.id,
+                    roleId: role.id,
+                    isActive: true
+                  }
+                })
+              }
+            }
+
+            // 4. 기존 멤버십 확인
+            const existingMembership = await tx.organizationMembership.findFirst({
+              where: {
+                memberId: member.id,
+                organizationId: organization.id,
+                isActive: true
+              }
+            })
+
+            let membership
+            if (existingMembership) {
+              // 기존 멤버십 업데이트
+              membership = await tx.organizationMembership.update({
+                where: { id: existingMembership.id },
+                data: {
+                  roleId: role?.id || null,
+                  joinDate,
+                  endDate,
+                  isActive: item.isActive === '활성',
+                  notes: item.memo || null,
+                }
+              })
+            } else {
+              // 새 멤버십 생성
+              membership = await tx.organizationMembership.create({
+                data: {
+                  memberId: member.id,
+                  organizationId: organization.id,
+                  roleId: role?.id || null,
+                  joinDate,
+                  endDate,
+                  isActive: item.isActive === '활성',
+                  notes: item.memo || null,
+                }
+              })
+            }
+
+            // 5. 변경 이력 저장 (기존 멤버십이 있는 경우 역할 변경으로, 없는 경우 활성화로 기록)
+            if (existingMembership) {
+              // 기존 멤버십 업데이트의 경우 - 가장 주요한 변경사항에 따라 타입 결정
+              let changeType: MembershipChangeType = 'ROLE_CHANGED'
+              if (membership.roleId !== existingMembership.roleId) {
+                changeType = 'ROLE_CHANGED'
+              } else if (membership.joinDate !== existingMembership.joinDate) {
+                changeType = 'JOIN_DATE_CHANGED'
+              } else if (membership.endDate !== existingMembership.endDate) {
+                changeType = 'END_DATE_CHANGED'
+              } else if (membership.notes !== existingMembership.notes) {
+                changeType = 'NOTES_CHANGED'
+              }
+              
+              await createMembershipHistory(
+                tx,
+                membership.id,
+                changeType,
+                {
+                  roleId: existingMembership.roleId,
+                  joinDate: existingMembership.joinDate,
+                  endDate: existingMembership.endDate,
+                  isActive: existingMembership.isActive,
+                  notes: existingMembership.notes,
+                },
+                {
+                  roleId: membership.roleId,
+                  joinDate: membership.joinDate,
+                  endDate: membership.endDate,
+                  isActive: membership.isActive,
+                  notes: membership.notes,
+                },
+                ctx.session.user.id,
+                reason
+              )
+            } else {
+              // 새 멤버십 생성의 경우
+              await createMembershipHistory(
+                tx,
+                membership.id,
+                'ACTIVATED',
+                null,
+                {
+                  roleId: membership.roleId,
+                  joinDate: membership.joinDate,
+                  endDate: membership.endDate,
+                  isActive: membership.isActive,
+                  notes: membership.notes,
+                },
+                ctx.session.user.id,
+                reason
+              )
+            }
+
+            importResults.push({
+              success: true,
+              membershipId: membership.id,
+              memberName: member.name,
+              organizationName: organization.name,
+              action: existingMembership ? 'updated' : 'created'
+            })
+
+          } catch (error) {
+            importResults.push({
+              success: false,
+              error: error instanceof Error ? error.message : '알 수 없는 오류',
+              data: item
+            })
+          }
+        }
+        
+        return importResults
+      })
+
+      const successCount = result.filter(r => r.success).length
+      const errorCount = result.filter(r => !r.success).length
+
+      return {
+        success: errorCount === 0,
+        totalProcessed: data.length,
+        successCount,
+        errorCount,
+        results: result
+      }
+    }),
 })

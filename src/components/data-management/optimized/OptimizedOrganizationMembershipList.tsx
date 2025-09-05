@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,7 +24,6 @@ import {
   Filter,
   MoreHorizontal,
   Edit2,
-  Trash2,
   Phone,
   Mail,
   Calendar,
@@ -33,20 +32,18 @@ import {
   ChevronRight,
   X,
   RefreshCw,
-  CheckSquare,
-  Square,
   Zap,
   UserCheck,
   UserX,
   Move,
-  Settings,
   ChevronDown,
   Upload
 } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
-import { OrganizationMemberEditDialog } from './OrganizationMemberEditDialog'
-import { BulkActionDialog } from './BulkActionDialog'
-import { ImportExportDialog } from './ImportExportDialog'
+import { OrganizationMemberEditDialog } from '../OrganizationMemberEditDialog'
+import { BulkActionDialog } from '../BulkActionDialog'
+import { ImportExportDialog } from '../ImportExportDialog'
+import { CACHE_TIMES, STALE_TIMES } from '@/lib/constants/cache'
 
 interface Organization {
   id: string
@@ -82,15 +79,127 @@ interface OrganizationMembership {
   role?: Role | null
 }
 
-interface OrganizationMembershipListProps {
+interface OptimizedOrganizationMembershipListProps {
   organizationId?: string
   memberId?: string
 }
 
-export function OrganizationMembershipList({
+// 메모화된 컴포넌트들
+const MemoizedMemberCard = React.memo<{
+  membership: OrganizationMembership
+  isSelected: boolean
+  onSelect: () => void
+  onEdit: () => void
+  formatDate: (date: string | Date) => string
+}>(({ membership, isSelected, onSelect, onEdit, formatDate }) => (
+  <div
+    className={`p-4 border rounded-lg transition-colors ${
+      membership.isActive 
+        ? 'border-gray-200 hover:border-gray-300' 
+        : 'border-gray-100 bg-gray-50'
+    } ${
+      isSelected 
+        ? 'ring-2 ring-blue-500 border-blue-300 bg-blue-50' 
+        : ''
+    }`}
+  >
+    <div className="flex items-start justify-between">
+      <div className="flex items-start gap-4">
+        {/* 체크박스 */}
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={onSelect}
+          className="mt-1"
+          aria-label={`${membership.member.name} 선택`}
+        />
+        
+        {/* 멤버 정보 */}
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="font-semibold text-lg">{membership.member.name}</h3>
+            
+            {/* 직책 배지 */}
+            {membership.role && (
+              <Badge 
+                variant={membership.role.isLeadership ? "default" : "secondary"}
+                className="flex items-center gap-1"
+              >
+                {membership.role.isLeadership && (
+                  <Crown className="h-3 w-3" />
+                )}
+                {membership.role.name}
+              </Badge>
+            )}
+            
+            {/* 주요 조직 배지 */}
+            {membership.isPrimary && (
+              <Badge variant="outline" className="text-blue-600 border-blue-200">
+                주요
+              </Badge>
+            )}
+            
+            {/* 활성/비활성 상태 */}
+            <Badge variant={membership.isActive ? "default" : "secondary"}>
+              {membership.isActive ? '활성' : '비활성'}
+            </Badge>
+          </div>
+
+          {/* 연락처 정보 */}
+          <div className="space-y-1 text-sm text-gray-600">
+            {membership.member.phone && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                <span>{membership.member.phone}</span>
+              </div>
+            )}
+            {membership.member.email && (
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                <span>{membership.member.email}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span>참여일: {formatDate(membership.joinDate)}</span>
+              {membership.endDate && (
+                <span>~ 종료일: {formatDate(membership.endDate)}</span>
+              )}
+            </div>
+          </div>
+
+          {/* 메모 */}
+          {membership.notes && (
+            <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+              <strong>메모:</strong> {membership.notes}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 액션 버튼 */}
+      <div className="flex items-center gap-2">
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={onEdit}
+          title="구성원 정보 수정"
+        >
+          <Edit2 className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" title="추가 작업">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  </div>
+))
+
+MemoizedMemberCard.displayName = 'MemoizedMemberCard'
+
+export function OptimizedOrganizationMembershipList({
   organizationId,
   memberId
-}: OrganizationMembershipListProps) {
+}: OptimizedOrganizationMembershipListProps) {
   // 검색 및 필터 상태
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedOrganization, setSelectedOrganization] = useState(organizationId || '')
@@ -126,7 +235,7 @@ export function OrganizationMembershipList({
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  // 조직별 멤버십 목록 조회 (페이지네이션 지원)
+  // 최적화된 쿼리들 - 캐시 시간 설정
   const { data: membershipData, isLoading, error, refetch } = trpc.organizationMemberships.getByOrganizationPaginated.useQuery({
     organizationId: selectedOrganization,
     page: currentPage,
@@ -136,129 +245,130 @@ export function OrganizationMembershipList({
     statusFilter: statusFilter
   }, {
     enabled: !!selectedOrganization,
-    keepPreviousData: true
+    keepPreviousData: true,
+    staleTime: STALE_TIMES.memberships,
+    cacheTime: CACHE_TIMES.memberships,
+    refetchOnWindowFocus: false,
+  })
+
+  // 조직 목록 조회 - 긴 캐시 시간
+  const { data: organizations } = trpc.organizations.getHierarchy.useQuery({
+    includeInactive: false
+  }, {
+    staleTime: STALE_TIMES.organizations,
+    cacheTime: CACHE_TIMES.organizations,
+    refetchOnWindowFocus: false,
+  })
+
+  // 직책 목록 조회 - 긴 캐시 시간
+  const { data: roles } = trpc.organizationRoles.getAll.useQuery({
+    includeStats: false
+  }, {
+    staleTime: STALE_TIMES.roles,
+    cacheTime: CACHE_TIMES.roles,
+    refetchOnWindowFocus: false,
   })
 
   const memberships = membershipData?.data || []
   const pagination = membershipData?.pagination
 
-  // 조직 목록 조회
-  const { data: organizations } = trpc.organizations.getHierarchy.useQuery({
-    includeInactive: false
-  })
+  // 메모화된 계산 함수들
+  const flatOrganizations = useMemo(() => {
+    const flattenOrganizations = (orgs: any[], depth = 0): Array<any & { depth: number }> => {
+      return orgs.reduce((acc, org) => {
+        acc.push({ ...org, depth })
+        if (org.children) {
+          acc.push(...flattenOrganizations(org.children, depth + 1))
+        }
+        return acc
+      }, [] as Array<any & { depth: number }>)
+    }
+    
+    return organizations ? flattenOrganizations(organizations) : []
+  }, [organizations])
 
-  // 직책 목록 조회
-  const { data: roles } = trpc.organizationRoles.getAll.useQuery({
-    includeStats: false
-  })
-
-  const flattenOrganizations = (orgs: any[], depth = 0): Array<any & { depth: number }> => {
-    return orgs.reduce((acc, org) => {
-      acc.push({ ...org, depth })
-      if (org.children) {
-        acc.push(...flattenOrganizations(org.children, depth + 1))
-      }
-      return acc
-    }, [] as Array<any & { depth: number }>)
-  }
-
-  const flatOrganizations = organizations ? flattenOrganizations(organizations) : []
-
-  // 필터 및 검색 초기화 함수
-  const handleResetFilters = () => {
+  // 메모화된 콜백 함수들
+  const handleResetFilters = useCallback(() => {
     setSearchTerm('')
     setSelectedRole('__ALL_ROLES__')
     setStatusFilter('active')
     setCurrentPage(1)
     setSelectedMemberIds(new Set())
     setShowBulkActions(false)
-  }
+  }, [])
 
-  // 조직 변경 시 필터 초기화
-  const handleOrganizationChange = (orgId: string) => {
+  const handleOrganizationChange = useCallback((orgId: string) => {
     setSelectedOrganization(orgId)
     setCurrentPage(1)
     setSelectedMemberIds(new Set())
     setShowBulkActions(false)
-  }
+  }, [])
 
-  // 페이지 변경
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page)
-    // 페이지 변경 시 선택 상태 초기화
     setSelectedMemberIds(new Set())
     setShowBulkActions(false)
-  }
+  }, [])
 
-  // 구성원 편집
-  const handleEditMember = (membership: OrganizationMembership) => {
+  const handleEditMember = useCallback((membership: OrganizationMembership) => {
     setSelectedMembership(membership)
     setShowEditDialog(true)
-  }
+  }, [])
 
-  // 편집 완료 후
-  const handleEditSuccess = () => {
-    refetch() // 목록 새로고침
-  }
+  const handleEditSuccess = useCallback(() => {
+    refetch()
+  }, [refetch])
 
-  // 편집 모달 닫기
-  const handleCloseEditDialog = () => {
+  const handleCloseEditDialog = useCallback(() => {
     setShowEditDialog(false)
     setSelectedMembership(null)
-  }
+  }, [])
 
-  // 다중 선택 관리 함수들
-  const handleSelectMember = (membershipId: string) => {
-    const newSelected = new Set(selectedMemberIds)
-    if (newSelected.has(membershipId)) {
-      newSelected.delete(membershipId)
-    } else {
-      newSelected.add(membershipId)
-    }
-    setSelectedMemberIds(newSelected)
-    setShowBulkActions(newSelected.size > 0)
-  }
+  const handleSelectMember = useCallback((membershipId: string) => {
+    setSelectedMemberIds(prev => {
+      const newSelected = new Set(prev)
+      if (newSelected.has(membershipId)) {
+        newSelected.delete(membershipId)
+      } else {
+        newSelected.add(membershipId)
+      }
+      setShowBulkActions(newSelected.size > 0)
+      return newSelected
+    })
+  }, [])
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     if (!membershipData?.data) return
     
     const allMemberIds = membershipData.data.map(m => m.id)
     const currentSelected = selectedMemberIds
     
     if (currentSelected.size === allMemberIds.length) {
-      // 모두 선택된 상태면 모두 해제
       setSelectedMemberIds(new Set())
       setShowBulkActions(false)
     } else {
-      // 모두 선택
       setSelectedMemberIds(new Set(allMemberIds))
       setShowBulkActions(true)
     }
-  }
+  }, [membershipData?.data, selectedMemberIds])
 
-  const handleDeselectAll = () => {
+  const handleDeselectAll = useCallback(() => {
     setSelectedMemberIds(new Set())
     setShowBulkActions(false)
-  }
+  }, [])
 
-  const isAllSelected = membershipData?.data 
-    ? selectedMemberIds.size === membershipData.data.length && membershipData.data.length > 0
-    : false
-  
-  const isPartiallySelected = selectedMemberIds.size > 0 && !isAllSelected
-
-  // 일괄 작업 핸들러
-  const handleBulkAction = (actionType: 'role' | 'organization' | 'activate' | 'deactivate') => {
+  const handleBulkAction = useCallback((actionType: 'role' | 'organization' | 'activate' | 'deactivate') => {
     setBulkActionType(actionType)
     setShowBulkDialog(true)
-  }
+  }, [])
 
-  const getSelectedMemberships = () => {
+  const getSelectedMemberships = useCallback(() => {
     if (!membershipData?.data) return []
     return membershipData.data.filter(m => selectedMemberIds.has(m.id))
-  }
+  }, [membershipData?.data, selectedMemberIds])
 
-  const getLevelColor = (orgLevel: string) => {
+  // 메모화된 유틸리티 함수들
+  const getLevelColor = useCallback((orgLevel: string) => {
     switch (orgLevel) {
       case 'LEVEL_1': return 'text-blue-600'
       case 'LEVEL_2': return 'text-green-600'
@@ -267,15 +377,27 @@ export function OrganizationMembershipList({
       case 'LEVEL_5': return 'text-pink-600'
       default: return 'text-gray-600'
     }
-  }
+  }, [])
 
-  const getLevelIndent = (depth: number) => {
+  const getLevelIndent = useCallback((depth: number) => {
     return '  '.repeat(depth) + (depth > 0 ? '└ ' : '')
-  }
+  }, [])
 
-  const formatDate = (date: string | Date) => {
+  const formatDate = useCallback((date: string | Date) => {
     return new Date(date).toLocaleDateString('ko-KR')
-  }
+  }, [])
+
+  const isAllSelected = useMemo(() => 
+    membershipData?.data 
+      ? selectedMemberIds.size === membershipData.data.length && membershipData.data.length > 0
+      : false,
+    [membershipData?.data, selectedMemberIds.size]
+  )
+  
+  const isPartiallySelected = useMemo(() => 
+    selectedMemberIds.size > 0 && !isAllSelected,
+    [selectedMemberIds.size, isAllSelected]
+  )
 
   if (error) {
     return (
@@ -581,108 +703,15 @@ export function OrganizationMembershipList({
               <>
                 <div className="space-y-4">
                   {memberships.map((membership) => (
-                  <div
-                    key={membership.id}
-                    className={`p-4 border rounded-lg transition-colors ${
-                      membership.isActive 
-                        ? 'border-gray-200 hover:border-gray-300' 
-                        : 'border-gray-100 bg-gray-50'
-                    } ${
-                      selectedMemberIds.has(membership.id) 
-                        ? 'ring-2 ring-blue-500 border-blue-300 bg-blue-50' 
-                        : ''
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        {/* 체크박스 */}
-                        <Checkbox
-                          checked={selectedMemberIds.has(membership.id)}
-                          onCheckedChange={() => handleSelectMember(membership.id)}
-                          className="mt-1"
-                          aria-label={`${membership.member.name} 선택`}
-                        />
-                        
-                        {/* 멤버 정보 */}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-semibold text-lg">{membership.member.name}</h3>
-                            
-                            {/* 직책 배지 */}
-                            {membership.role && (
-                              <Badge 
-                                variant={membership.role.isLeadership ? "default" : "secondary"}
-                                className="flex items-center gap-1"
-                              >
-                                {membership.role.isLeadership && (
-                                  <Crown className="h-3 w-3" />
-                                )}
-                                {membership.role.name}
-                              </Badge>
-                            )}
-                            
-                            {/* 주요 조직 배지 */}
-                            {membership.isPrimary && (
-                              <Badge variant="outline" className="text-blue-600 border-blue-200">
-                                주요
-                              </Badge>
-                            )}
-                            
-                            {/* 활성/비활성 상태 */}
-                            <Badge variant={membership.isActive ? "default" : "secondary"}>
-                              {membership.isActive ? '활성' : '비활성'}
-                            </Badge>
-                          </div>
-
-                          {/* 연락처 정보 */}
-                          <div className="space-y-1 text-sm text-gray-600">
-                            {membership.member.phone && (
-                              <div className="flex items-center gap-2">
-                                <Phone className="h-4 w-4" />
-                                <span>{membership.member.phone}</span>
-                              </div>
-                            )}
-                            {membership.member.email && (
-                              <div className="flex items-center gap-2">
-                                <Mail className="h-4 w-4" />
-                                <span>{membership.member.email}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4" />
-                              <span>참여일: {formatDate(membership.joinDate)}</span>
-                              {membership.endDate && (
-                                <span>~ 종료일: {formatDate(membership.endDate)}</span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* 메모 */}
-                          {membership.notes && (
-                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                              <strong>메모:</strong> {membership.notes}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 액션 버튼 */}
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleEditMember(membership)}
-                          title="구성원 정보 수정"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" title="추가 작업">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    <MemoizedMemberCard
+                      key={membership.id}
+                      membership={membership}
+                      isSelected={selectedMemberIds.has(membership.id)}
+                      onSelect={() => handleSelectMember(membership.id)}
+                      onEdit={() => handleEditMember(membership)}
+                      formatDate={formatDate}
+                    />
+                  ))}
                 </div>
 
                 {/* 페이지네이션 */}

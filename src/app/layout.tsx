@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { AuthSessionProvider } from '@/components/providers/session-provider';
 import { TRPCProvider } from '@/components/providers/trpc-provider';
 import { PWAProvider } from '@/components/providers/pwa-provider';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Toaster } from 'sonner';
 import './globals.css';
 
@@ -84,21 +85,23 @@ export default function RootLayout({
         />
       </head>
       <body className={inter.className}>
-        <AuthSessionProvider>
-          <TRPCProvider>
-            {process.env.NODE_ENV === 'production' ? (
-              <PWAProvider>
-                {children}
-                <Toaster position="top-right" richColors />
-              </PWAProvider>
-            ) : (
-              <>
-                {children}
-                <Toaster position="top-right" richColors />
-              </>
-            )}
-          </TRPCProvider>
-        </AuthSessionProvider>
+        <ErrorBoundary>
+          <AuthSessionProvider>
+            <TRPCProvider>
+              {process.env.NODE_ENV === 'production' ? (
+                <PWAProvider>
+                  {children}
+                  <Toaster position="top-right" richColors />
+                </PWAProvider>
+              ) : (
+                <>
+                  {children}
+                  <Toaster position="top-right" richColors />
+                </>
+              )}
+            </TRPCProvider>
+          </AuthSessionProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
