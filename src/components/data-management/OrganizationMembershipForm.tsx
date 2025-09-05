@@ -88,6 +88,7 @@ export function OrganizationMembershipForm({
   filterByRoleAssignments = false
 }: OrganizationMembershipFormProps) {
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null)
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
 
@@ -126,6 +127,8 @@ export function OrganizationMembershipForm({
   const createMembershipMutation = trpc.organizationMemberships.create.useMutation({
     onSuccess: () => {
       reset()
+      setSearchTerm('')
+      setSelectedMember(null)
       setSelectedOrganization(null)
       setSelectedRole(null)
       onSuccess?.()
@@ -154,7 +157,22 @@ export function OrganizationMembershipForm({
     }, [] as Array<Organization & { depth: number }>)
   }
 
-  const flatOrganizations = flattenOrganizations(sourceOrganizations)
+  // 중복 제거된 조직 목록
+  const allFlatOrganizations = flattenOrganizations(sourceOrganizations)
+  const uniqueOrganizations = allFlatOrganizations.reduce((acc, org) => {
+    const existingIndex = acc.findIndex(existing => existing.id === org.id)
+    if (existingIndex === -1) {
+      acc.push(org)
+    } else {
+      // 이미 존재하는 경우, depth가 더 작은 것(상위 레벨)을 유지
+      if (org.depth < acc[existingIndex].depth) {
+        acc[existingIndex] = org
+      }
+    }
+    return acc
+  }, [] as Array<Organization & { depth: number }>)
+
+  const flatOrganizations = uniqueOrganizations
 
   // 리더십 직책과 일반 직책 분리
   const leadershipRoles = roles.filter(r => r.isLeadership).sort((a, b) => b.level - a.level)
@@ -167,7 +185,7 @@ export function OrganizationMembershipForm({
         organizationId: data.organizationId,
         roleId: data.roleId || undefined,
         isPrimary: data.isPrimary,
-        joinDate: data.joinDate ? new Date(data.joinDate) : new Date(),
+        joinDate: data.joinDate || new Date().toISOString().split('T')[0], // 문자열로 전송, 백엔드에서 Date로 변환
         notes: data.notes || undefined
       })
     } catch (error) {
@@ -189,6 +207,13 @@ export function OrganizationMembershipForm({
 
   const handleMemberChange = (memberId: string) => {
     setValue('memberId', memberId)
+    const member = members?.find(m => m.id === memberId)
+    setSelectedMember(member || null)
+    
+    // 선택된 교인 이름을 검색창에 표시하고 검색 결과 숨기기
+    if (member) {
+      setSearchTerm(member.name)
+    }
   }
 
   const getLevelIndent = (depth: number) => {
@@ -233,12 +258,19 @@ export function OrganizationMembershipForm({
                   id="member-search"
                   placeholder="교인 이름, 전화번호, 이메일로 검색..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    // 검색어가 변경되면 선택된 멤버 초기화
+                    if (selectedMember && e.target.value !== selectedMember.name) {
+                      setSelectedMember(null)
+                      setValue('memberId', '')
+                    }
+                  }}
                   className="pl-10"
                 />
               </div>
               
-              {searchTerm.length >= 2 && (
+              {searchTerm.length >= 2 && !selectedMember && (
                 <div className="border rounded-lg max-h-40 overflow-y-auto">
                   {membersLoading ? (
                     <div className="p-3 text-center text-sm text-muted-foreground">
@@ -275,6 +307,24 @@ export function OrganizationMembershipForm({
                 </div>
               )}
             </div>
+            {selectedMember && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-green-600" />
+                  <span className="font-medium text-green-800">선택된 교인: {selectedMember.name}</span>
+                </div>
+                <div className="text-sm text-green-600 mt-1">
+                  {selectedMember.phone && <span>{selectedMember.phone}</span>}
+                  {selectedMember.phone && selectedMember.email && <span> • </span>}
+                  {selectedMember.email && <span>{selectedMember.email}</span>}
+                  {selectedMember.position && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {selectedMember.position.name}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
             {errors.memberId && (
               <p className="text-sm text-red-600">{errors.memberId.message}</p>
             )}
@@ -461,9 +511,9 @@ export function OrganizationMembershipForm({
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || createMembershipMutation.isLoading}
+              disabled={isSubmitting || createMembershipMutation.isPending}
             >
-              {isSubmitting || createMembershipMutation.isLoading ? (
+              {isSubmitting || createMembershipMutation.isPending ? (
                 <>등록 중...</>
               ) : (
                 <>

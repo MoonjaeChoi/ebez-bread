@@ -47,4 +47,32 @@ const AvatarFallback = React.forwardRef<
 ))
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
-export { Avatar, AvatarImage, AvatarFallback }
+const AvatarInitials = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Fallback>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback> & {
+    name: string
+  }
+>(({ className, name, ...props }, ref) => {
+  const initials = name
+    .split(' ')
+    .map(n => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  return (
+    <AvatarPrimitive.Fallback
+      ref={ref}
+      className={cn(
+        "flex h-full w-full items-center justify-center rounded-full bg-muted text-xs font-medium",
+        className
+      )}
+      {...props}
+    >
+      {initials}
+    </AvatarPrimitive.Fallback>
+  )
+})
+AvatarInitials.displayName = "AvatarInitials"
+
+export { Avatar, AvatarImage, AvatarFallback, AvatarInitials }

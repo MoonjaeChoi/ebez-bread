@@ -655,27 +655,207 @@ export const APPROVAL_MATRIX = {
 }
 ```
 
-## 🚀 **구현 로드맵**
+## 🚀 **구현 로드맵 및 상세 Todo List**
 
-### **Phase 3.4.1: 기본 결재선 시스템 (2주)**
-- [ ] ApprovalFlow, ApprovalStep 모델 생성
-- [ ] 기본 결재선 생성 엔진 구현
-- [ ] 단순 승인/반려 기능 구현
+### **Phase 3.4.1: 데이터베이스 스키마 및 기본 모델 구현 (1주) ✅ COMPLETED**
 
-### **Phase 3.4.2: 고급 결재 기능 (2주)** 
-- [ ] 동적 결재선 생성 알고리즘
-- [ ] 조직 계층 기반 결재자 자동 검색
-- [ ] 결재 현황 대시보드 구현
+#### **🗄️ 데이터베이스 스키마 작업**
+- [x] `ApprovalFlow` 모델을 Prisma 스키마에 추가
+- [x] `TransactionApprovalStep` 모델을 Prisma 스키마에 추가 (기존 ApprovalStep 충돌 방지)
+- [x] `ApprovalMatrix` 및 `ApprovalMatrixLevel` 설정 테이블 추가
+- [x] `Transaction` 모델에 결재 관련 필드 추가 (`status`, `submittedAt`, `approvedAt`, `rejectedAt`, `rejectionReason`)
+- [x] 결재 상태 관련 Enum 타입들 추가 (`TransactionStatus`, `ApprovalFlowStatus`, `ApprovalStepStatus`, `ApprovalMatrixCategory`)
+- [x] 데이터베이스 마이그레이션 실행 (`npm run db:push`)
+- [x] 기본 결재 매트릭스 Seed 데이터 작성 (`prisma/seeds/approval-matrix.ts`)
 
-### **Phase 3.4.3: 알림 및 에스컬레이션 (1주)**
-- [ ] 결재 알림 시스템 구현
-- [ ] 자동 에스컬레이션 로직
-- [ ] 결재 지연 모니터링
+#### **🏗️ 기본 서비스 구조 구현**
+- [x] `src/lib/approval/` 디렉토리 구조 생성
+- [x] `ApprovalEngine` 클래스 완전 구현 (`src/lib/approval/approval-engine.ts`)
+- [x] `ApprovalService` 클래스 완전 구현 (`src/server/services/approval.service.ts`)
+- [x] 결재 매트릭스 설정 파일 생성 (`src/lib/approval/approval-matrix.ts`)
+- [x] 포괄적 타입 정의 파일 생성 (`src/types/approval.ts` - 30+ 인터페이스)
 
-### **Phase 3.4.4: 통합 및 최적화 (1주)**
-- [ ] 기존 회계시스템과 통합 테스트
-- [ ] 성능 최적화 및 캐싱
-- [ ] 사용자 교육 및 문서화
+### **Phase 3.4.2: 조직 기반 결재선 생성 엔진 (2주) ✅ COMPLETED**
+
+#### **🔄 결재선 자동 생성 로직**
+- [x] 조직 계층 구조 조회 함수 구현 (`getOrganizationHierarchy`)
+- [x] 금액별 결재 매트릭스 조회 로직 구현 (`getApprovalMatrix`)
+- [x] 조직에서 특정 직책을 가진 결재자 검색 함수 (`findRoleInOrganization`)
+- [x] 상위 조직으로 결재자 확장 검색 함수 (`findRoleInAncestors`)
+- [x] 동적 결재선 생성 메인 엔진 구현 (`generateApprovalFlow`)
+- [x] 에스컬레이션 룰 처리 로직 구현 (`handleMissingApprover`)
+- [x] 중복 결재자 제거 로직 구현 (`removeDuplicateApprovers`)
+- [x] 계층별 결재자 검색 및 에스컬레이션 구현
+
+#### **📋 tRPC 라우터 구현**
+- [x] `src/server/routers/approvals.ts` 라우터 파일 완전 구현
+- [x] 결재선 생성 API (`createApprovalFlow`) 구현
+- [x] 결재선 미리보기 API (`previewApprovalFlow`) 구현
+- [x] 결재 처리 API (`processApproval`) 구현
+- [x] 결재 현황 조회 API (`getApprovalFlowByTransaction`) 구현
+- [x] 내 대기 결재 목록 API (`getPendingApprovals`) 구현
+- [x] 내 요청 현황 API (`getMyRequests`) 구현
+- [x] 조직별 결재 통계 API (`getApprovalStats`) 구현
+- [x] 모든 tRPC 엔드포인트 타입 안전성 확보
+
+### **Phase 3.4.3: 기존 지출결의서 페이지와 통합 (1주) ✅ COMPLETED**
+
+#### **🔗 기존 컴포넌트 확장**
+- [x] `src/components/expense-reports/expense-report-form.tsx` - 조직 선택 필드 추가
+- [x] `src/components/expense-reports/expense-report-form.tsx` - 결재선 미리보기 기능 추가
+- [x] `src/components/expense-reports/expense-report-form.tsx` - 수동/자동 결재 시스템 토글 기능
+- [x] `src/components/expense-reports/expense-workflow-approval.tsx` - 조직 기반 결재선으로 리팩토링
+- [x] `src/components/expense-reports/expense-workflow-approval.tsx` - 이중 결재 시스템 지원 (레거시 + 조직 기반)
+- [x] `src/components/expense-reports/expense-report-approval.tsx` - 새로운 결재 플로우와 연동
+- [x] `src/components/expense-reports/expense-report-detail.tsx` - 결재 현황 시각화 추가
+- [x] 기존 시스템과의 완전한 하위 호환성 유지
+
+#### **🎨 새로운 UI 컴포넌트 구현**
+- [x] 조직 선택 드롭다운 - 계층 구조 시각화 포함
+- [x] 실시간 결재선 미리보기 - 금액/카테고리 변경 시 동적 업데이트
+- [x] 결재 플로우 시각화 - 단계별 진행 현황 및 결재자 정보
+- [x] 이중 시스템 지원 UI - 사용자가 수동/자동 결재 방식 선택 가능
+- [x] 타입 안전성 확보 - 모든 컴포넌트 타입스크립트 완전 지원
+- [x] 반응형 디자인 - 모바일 및 데스크톱 최적화
+
+### **Phase 3.4.4: 결재 처리 워크플로우 구현 (1주) ✅ COMPLETED**
+
+#### **⚡ 결재 처리 로직**
+- [x] 결재 권한 검증 함수 구현 (`validateApprovalAuthority`)
+- [x] 단계별 결재 처리 함수 구현 (`approveStep`, `rejectStep`)
+- [x] 다음 단계 진행 로직 구현 (`advanceToNextStep`)
+- [x] 최종 승인 처리 함수 구현 (`completeApproval`)
+- [x] 반려 처리 함수 구현 (`rejectTransaction`)
+- [x] 결재 지연 체크 및 에스컬레이션 로직 기본 구현
+
+#### **🔔 알림 시스템 통합**
+- [x] 기존 알림 서비스와 결재 알림 통합 (`src/lib/notifications/service.ts`)
+- [x] 결재 요청 알림 기능 구현 (`sendApprovalRequest`)
+- [x] 결재 완료 알림 기능 구현 (`sendApprovalCompletion`) 
+- [x] 결재 지연 에스컬레이션 알림 기능 구현 (`sendDelayedApprovalEscalation`)
+- [ ] 결재 알림 이메일 템플릿 생성 (추후 구현)
+- [ ] 결재 지연 알림 스케줄러 고도화 (추후 구현)
+
+### **Phase 3.4.5: 결재 현황 대시보드 및 통계 (1주) ✅ COMPLETED**
+
+#### **📊 대시보드 페이지 구현**
+- [x] `/dashboard/approvals` 페이지 생성 (`src/app/dashboard/approvals/page.tsx`)
+- [x] 대기 중인 결재 목록 섹션 구현 (`ApprovalDashboard` 컴포넌트)
+- [x] 내 요청 현황 섹션 구현 (내 요청 탭 및 상태 표시)
+- [x] 결재 통계 대시보드 구현 (대기/진행/완료 상태별 카드)
+- [x] 결재 처리 모달 구현 (`ApprovalProcessModal` 컴포넌트)
+- [x] 실시간 결재 상태 업데이트 기능
+- [ ] 필터링 및 검색 기능 구현 (추후 구현)
+- [ ] 결재 내역 Export 기능 구현 (추후 구현)
+
+#### **📈 통계 및 분석 기능**
+- [x] 기본 결재 현황 통계 API 구현 (`getPendingApprovals`, `getMyRequests`)
+- [x] 사용자별 결재 대기 목록 조회
+- [x] 결재 플로우 상태 추적 시스템
+- [ ] 조직별 결재 패턴 분석 API (추후 구현)
+- [ ] 결재자별 성과 통계 API (추후 구현)
+- [ ] 결재 지연 분석 리포트 API (추후 구현)
+- [ ] 결재 병목 지점 분석 기능 (추후 구현)
+- [ ] 결재 승인율 추이 분석 (추후 구현)
+
+### **Phase 3.4.6: 고급 기능 및 최적화 (1주)**
+
+#### **🚀 성능 및 사용성 개선**
+- [ ] 결재 처리 성능 최적화 (트랜잭션 처리, 인덱스 최적화)
+- [ ] 결재선 생성 캐싱 구현 (Redis 캐시 활용)
+- [ ] 무한 스크롤 또는 가상화 목록 구현 (대용량 결재 데이터)
+- [ ] 결재 처리 시 낙관적 업데이트 적용
+- [ ] 모바일 친화적 결재 UI 최적화
+
+#### **🔧 관리자 설정 기능**
+- [ ] 결재 매트릭스 관리 UI 구현 (`/dashboard/admin/approval-settings`)
+- [ ] 조직별 결재 규칙 설정 기능
+- [ ] 결재 권한 위임 기능 구현
+- [ ] 결재 템플릿 관리 기능
+- [ ] 결재 감사 로그 조회 기능
+
+### **Phase 3.4.7: 테스트 및 문서화 (1주)**
+
+#### **🧪 테스트 구현**
+- [ ] ApprovalEngine 단위 테스트 작성 (`src/lib/approval/__tests__/`)
+- [ ] ApprovalService 통합 테스트 작성 (`src/server/services/__tests__/`)
+- [ ] 결재 워크플로우 E2E 테스트 작성 (`e2e/approval-workflow.spec.ts`)
+- [ ] 결재 권한 검증 테스트 작성
+- [ ] 에스컬레이션 로직 테스트 작성
+- [ ] 결재 알림 기능 테스트 작성
+
+#### **📚 문서화 및 배포 준비**
+- [ ] API 문서 작성 (결재 관련 모든 엔드포인트)
+- [ ] 사용자 가이드 작성 (결재 프로세스 설명)
+- [ ] 관리자 설정 가이드 작성
+- [ ] 마이그레이션 가이드 작성 (기존 데이터 이전 방법)
+- [ ] 성능 모니터링 대시보드 설정
+- [ ] 프로덕션 배포 체크리스트 작성
+
+---
+
+## ✅ **구현 우선순위 및 의존성**
+
+### **🔴 High Priority (즉시 시작)**
+1. **Phase 3.4.1**: 데이터베이스 스키마 - 모든 기능의 기반
+2. **Phase 3.4.2**: 결재선 생성 엔진 - 핵심 비즈니스 로직
+3. **Phase 3.4.3**: 기존 지출결의서 페이지 통합 - 사용자 경험
+
+### **🟡 Medium Priority (순차 진행)**
+4. **Phase 3.4.4**: 결재 처리 워크플로우 - 완전한 기능 구현
+5. **Phase 3.4.5**: 결재 현황 대시보드 - 관리 편의성
+
+### **🟢 Low Priority (여유있을 때)**
+6. **Phase 3.4.6**: 고급 기능 및 최적화 - 성능 개선
+7. **Phase 3.4.7**: 테스트 및 문서화 - 품질 보증
+
+### **📝 각 Phase 완료 기준**
+- [x] **Phase 3.4.1 완료**: 모든 스키마 적용, 기본 서비스 구조 완성 ✅
+- [x] **Phase 3.4.2 완료**: 조직 기반 결재선 자동 생성 동작 ✅
+- [x] **Phase 3.4.3 완료**: 기존 지출결의서 페이지에서 새로운 결재선 사용 가능 ✅
+- [x] **Phase 3.4.4 완료**: 완전한 결재 승인/반려 프로세스 동작 ✅
+- [x] **Phase 3.4.5 완료**: 결재 현황 대시보드 정상 동작 ✅
+- [ ] **Phase 3.4.6 완료**: 모든 고급 기능 구현 및 성능 최적화
+- [ ] **Phase 3.4.7 완료**: 테스트 커버리지 80% 이상, 문서화 완료
+
+**전체 예상 소요 기간**: 7주 (약 2개월)
+**MVP(최소 기능) 완료**: Phase 3.4.5 완료 시점 (5주) ✅ **완료됨**
+
+---
+
+## 🆕 **최근 추가 개발 사항 (2024년 9월 5일 기준)**
+
+### **🔧 시스템 관리 기능 강화**
+- [x] **교회 정보 수정 기능** - 시스템 관리자(SUPER_ADMIN)가 시스템 설정 페이지에서 교회 기본 정보 수정 가능
+  - 교회명, 이메일, 전화번호, 주소, 홈페이지, 담임목사, 교회소개 편집
+  - 권한 기반 접근 제어 (SUPER_ADMIN만 수정 가능)
+  - 실시간 폼 유효성 검사 및 사용자 친화적 UI
+  - tRPC API (`admin.church.getInfo`, `admin.church.updateInfo`) 구현
+
+### **🗃️ 데이터 관리 개선**
+- [x] **테스트 멤버 데이터 시드 스크립트** - "교인을 찾을 수 없습니다" 오류 해결
+  - `src/scripts/seed-members.ts` - 교회, 조직, 역할, 교인 데이터 자동 생성
+  - 5명의 테스트 교인 (장로, 권사, 집사, 성도) 및 조직 멤버십 생성
+  - 데이터베이스 무결성 검증 및 중복 생성 방지
+
+### **🛡️ 오류 처리 강화**
+- [x] **지출결의서 폼 오류 처리 개선** - 반복 서버 호출 방지
+  - tRPC 쿼리 옵션 추가: `retry: false`, `refetchOnWindowFocus: false`
+  - ErrorBoundary 래핑으로 예상치 못한 오류 처리
+  - 사용자 친화적 오류 메시지 및 복구 옵션 제공
+
+### **📊 현재 개발 진행률**
+```
+Phase 3.4.1: ████████████████████ 100% ✅ 완료
+Phase 3.4.2: ████████████████████ 100% ✅ 완료  
+Phase 3.4.3: ████████████████████ 100% ✅ 완료
+Phase 3.4.4: ████████████████████ 100% ✅ 완료
+Phase 3.4.5: ████████████████████ 100% ✅ 완료
+Phase 3.4.6: ░░░░░░░░░░░░░░░░░░░░  0%
+Phase 3.4.7: ░░░░░░░░░░░░░░░░░░░░  0%
+
+전체 진행률: ██████████████░░░░░░ 71.4% (5/7 Phase 완료)
+```
 
 ---
 

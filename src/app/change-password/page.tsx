@@ -15,7 +15,7 @@ export default function ChangePasswordPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
-  const returnUrl = searchParams.get('returnUrl') || '/dashboard'
+  const returnUrl = searchParams?.get('returnUrl') || '/dashboard'
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')

@@ -1,6 +1,7 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { handlePasswordChangeRedirect } from '@/lib/auth/password-change-middleware'
 
 // Rate limiting store (in production, use Redis or external store)
 const rateLimitMap = new Map<string, { count: number; lastReset: number }>()
@@ -46,7 +47,7 @@ function checkRateLimit(request: NextRequest): boolean {
 }
 
 export default withAuth(
-  function middleware(request: NextRequest) {
+  async function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
 
     // Apply rate limiting to auth endpoints
@@ -66,6 +67,12 @@ export default withAuth(
           }
         )
       }
+    }
+
+    // Check for password change requirement (for authenticated users)
+    const passwordRedirectResponse = await handlePasswordChangeRedirect(request)
+    if (passwordRedirectResponse && passwordRedirectResponse.status === 307) {
+      return passwordRedirectResponse
     }
 
     // Security headers
@@ -99,6 +106,7 @@ export default withAuth(
           '/auth/error',
           '/api/auth',
           '/api/health',
+          '/change-password',  // Allow password change page
         ]
 
         // Check if path is public

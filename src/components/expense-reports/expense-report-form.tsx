@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { trpc } from '@/lib/trpc/client'
+import type { ApprovalMatrixCategory } from '@/types/approval'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,21 +28,26 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Upload, FileText, Trash2, Shield, Clock, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
+import { Upload, FileText, Trash2, Shield, Clock, CheckCircle, XCircle, ArrowRight, AlertTriangle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 const expenseReportFormSchema = z.object({
   title: z.string().min(1, '제목을 입력해주세요').max(200, '제목은 200자 이내로 입력해주세요'),
   description: z.string().optional(),
   amount: z.number().min(0.01, '금액을 입력해주세요').max(999999999, '금액이 너무 큽니다'),
   category: z.string().min(1, '지출 분류를 선택해주세요'),
+  organizationId: z.string().min(1, '조직을 선택해주세요'),
   receiptUrl: z.string().optional(),
-  // 결재담당자 선택
+  // 결재담당자 선택 (기존 방식 유지, 새로운 결재시스템과 병행)
   approvers: z.object({
     step1: z.string().optional(),
     step2: z.string().optional(), 
     step3: z.string().optional(),
   }).optional(),
+  // 새로운 조직 기반 결재 시스템 사용 여부
+  useOrganizationApproval: z.boolean().default(false),
 })
 
 type ExpenseReportFormData = z.infer<typeof expenseReportFormSchema>
@@ -92,12 +98,52 @@ export function ExpenseReportForm({
   const isEditing = !!reportId
   const { data: session } = useSession()
 
-  const { data: categories } = trpc.expenseReports.getCategories.useQuery()
-  const { data: approvalCandidates } = trpc.expenseReports.getApprovalCandidates.useQuery()
+  const { data: categories, error: categoriesError } = trpc.expenseReports.getCategories.useQuery(
+    undefined,
+    { 
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 5 * 60 * 1000, // 5분간 캐싱
+      cacheTime: 30 * 60 * 1000, // 30분간 메모리에 보관
+    }
+  )
+  
+  const { data: approvalCandidates, error: candidatesError } = trpc.expenseReports.getApprovalCandidates.useQuery(
+    undefined,
+    { 
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 2 * 60 * 1000, // 2분간 캐싱 (사용자 데이터는 더 자주 변경될 수 있음)
+      cacheTime: 10 * 60 * 1000, // 10분간 메모리에 보관
+    }
+  )
+  
+  const { data: organizations, error: organizationsError } = trpc.organizations.getHierarchy.useQuery(
+    {},
+    { 
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 1 * 60 * 1000, // 1분간 캐싱 (조직 구조는 자주 변경될 수 있음)
+      cacheTime: 5 * 60 * 1000, // 5분간 메모리에 보관
+    }
+  )
+  
+  // 현재 사용자의 조직 멤버십 조회 - 비활성화 (Users와 Members는 별개 엔티티)
+  // TODO: 사용자 권한에 따른 조직 접근 권한 로직 구현 필요
+  const membershipsError = null
+  
   
   const { data: editData } = trpc.expenseReports.getById.useQuery(
     { id: reportId! },
-    { enabled: !!reportId }
+    { 
+      enabled: !!reportId,
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false 
+    }
   )
 
   const createMutation = trpc.expenseReports.create.useMutation({
@@ -136,7 +182,9 @@ export function ExpenseReportForm({
       description: '',
       amount: 0,
       category: '',
+      organizationId: '',
       receiptUrl: '',
+      useOrganizationApproval: false,
       approvers: {
         step1: session?.user?.id || '',
         step2: '',
@@ -144,6 +192,27 @@ export function ExpenseReportForm({
       },
     },
   })
+
+  // 결재선 미리보기 - 조직, 금액, 카테고리가 모두 선택되었을 때 조회
+  const selectedOrg = watch('organizationId')
+  const selectedAmount = watch('amount')
+  const selectedCategory = watch('category')
+  const useOrgApproval = watch('useOrganizationApproval')
+  
+  const { data: approvalPreview, isLoading: isLoadingPreview } = trpc.approvals.previewApprovalFlow.useQuery(
+    {
+      organizationId: selectedOrg,
+      amount: selectedAmount,
+      category: selectedCategory as ApprovalMatrixCategory,
+      description: watch('title') || '',
+    },
+    {
+      enabled: !!selectedOrg && !!selectedAmount && selectedAmount > 0 && !!selectedCategory && useOrgApproval,
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false
+    }
+  )
 
   const watchedReceiptUrl = watch('receiptUrl')
 
@@ -154,7 +223,9 @@ export function ExpenseReportForm({
         description: editData.description || '',
         amount: Number(editData.amount),
         category: editData.category,
+        organizationId: editData.organizationId || '',
         receiptUrl: editData.receiptUrl || '',
+        useOrganizationApproval: false,
       })
     } else {
       reset({
@@ -162,7 +233,9 @@ export function ExpenseReportForm({
         description: '',
         amount: 0,
         category: '',
+        organizationId: '',
         receiptUrl: '',
+        useOrganizationApproval: false,
         approvers: {
           step1: session?.user?.id || '',
           step2: '',
@@ -273,8 +346,34 @@ export function ExpenseReportForm({
 
   const isLoading = createMutation.isPending || updateMutation.isPending
 
+  // 데이터 로딩 오류 체크
+  const hasDataError = !!(categoriesError || candidatesError || organizationsError || membershipsError)
+
   return (
-    <Dialog open={isOpen} onOpenChange={!isDragging ? handleClose : undefined}>
+    <ErrorBoundary
+      fallback={
+        <Dialog open={isOpen} onOpenChange={handleClose}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>오류 발생</DialogTitle>
+            </DialogHeader>
+            <Alert className="border-red-200">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <AlertDescription className="text-red-700">
+                지출결의서 폼을 불러오는 중 오류가 발생했습니다. 페이지를 새로고침해주세요.
+              </AlertDescription>
+            </Alert>
+            <DialogFooter>
+              <Button onClick={() => window.location.reload()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                페이지 새로고침
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      <Dialog open={isOpen} onOpenChange={!isDragging ? handleClose : undefined}>
       <DialogContent 
         ref={dialogRef}
         className="sm:max-w-[600px] max-h-[95vh] overflow-y-auto"
@@ -305,10 +404,190 @@ export function ExpenseReportForm({
           </DialogDescription>
         </DialogHeader>
 
+        {/* 데이터 로딩 오류 표시 */}
+        {hasDataError && (
+          <Alert className="border-red-200 bg-red-50">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-700">
+              <div className="space-y-2">
+                <p className="font-medium">데이터를 불러오는 중 오류가 발생했습니다.</p>
+                <p className="text-sm">
+                  {categoriesError && "지출 분류 데이터를 불러올 수 없습니다. "}
+                  {candidatesError && "결재 담당자 데이터를 불러올 수 없습니다. "}
+                  {organizationsError && "조직 데이터를 불러올 수 없습니다. "}
+                  {membershipsError && "구성원 정보를 불러올 수 없습니다. "}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                  className="mt-2"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  페이지 새로고침
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${hasDataError ? 'opacity-50 pointer-events-none' : ''}`}>
+            
+            {/* 조직 선택 */}
+            <div className="space-y-2">
+              <Label htmlFor="organizationId">
+                소속 조직 <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={watch('organizationId')}
+                onValueChange={(value) => setValue('organizationId', value)}
+              >
+                <SelectTrigger className={`${errors.organizationId ? 'border-red-500' : ''} ${watch('organizationId') ? 'border-blue-500 bg-blue-50' : ''}`}>
+                  <SelectValue placeholder="조직을 선택하세요" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations?.map((org) => (
+                    <SelectItem key={org.id} value={org.id} className="font-medium">
+                      📋 {org.name} ({org.code})
+                    </SelectItem>
+                  ))}
+                  {organizations?.map((org) => 
+                    org.children?.map((child) => (
+                      <SelectItem key={child.id} value={child.id} className="pl-6">
+                        ├─ {child.name} ({child.code})
+                      </SelectItem>
+                    ))
+                  )}
+                  {organizations?.map((org) => 
+                    org.children?.map((child) => 
+                      child.children?.map((grandChild) => (
+                        <SelectItem key={grandChild.id} value={grandChild.id} className="pl-10 text-sm">
+                          └─ {grandChild.name} ({grandChild.code})
+                        </SelectItem>
+                      ))
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+              {/* 선택된 조직 표시 */}
+              {watch('organizationId') && (
+                <div className="flex items-center space-x-2 p-2 bg-green-50 border border-green-200 rounded-md">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-700 font-medium">
+                    선택됨: {(() => {
+                      const selectedId = watch('organizationId')
+                      // Find selected organization in hierarchy
+                      for (const org of organizations || []) {
+                        if (org.id === selectedId) return `${org.name} (${org.code})`
+                        for (const child of org.children || []) {
+                          if (child.id === selectedId) return `${child.name} (${child.code})`
+                          for (const grandChild of child.children || []) {
+                            if (grandChild.id === selectedId) return `${grandChild.name} (${grandChild.code})`
+                          }
+                        }
+                      }
+                      return '조직을 찾을 수 없음'
+                    })()}
+                  </span>
+                </div>
+              )}
+              {errors.organizationId && (
+                <p className="text-sm text-red-500">{errors.organizationId.message}</p>
+              )}
+            </div>
+            
+            {/* 결재 시스템 선택 */}
+            <div className="space-y-2">
+              <Label>결재 방식</Label>
+              <div className="flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={!watch('useOrganizationApproval')}
+                    onChange={() => setValue('useOrganizationApproval', false)}
+                    className="form-radio"
+                  />
+                  <span className="text-sm">기존 방식 (수동 지정)</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    checked={watch('useOrganizationApproval')}
+                    onChange={() => setValue('useOrganizationApproval', true)}
+                    className="form-radio"
+                  />
+                  <span className="text-sm">조직 기반 자동 결재</span>
+                </label>
+              </div>
+            </div>
+            {/* 조직 기반 결재선 미리보기 */}
+            {!isEditing && useOrgApproval && selectedOrg && selectedAmount > 0 && selectedCategory && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <Shield className="w-5 h-5" />
+                    <span>자동 결재선 미리보기</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingPreview ? (
+                    <div className="text-center text-sm text-gray-500">결재선을 생성 중입니다...</div>
+                  ) : approvalPreview ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">총 {approvalPreview.totalSteps}단계</span>
+                        <span className="text-sm text-gray-600">예상 소요 시간: {approvalPreview.estimatedDays}일</span>
+                      </div>
+                      
+                      <div className="flex items-center space-x-4 overflow-x-auto">
+                        {approvalPreview.steps.map((step, index) => (
+                          <div key={step.stepOrder} className="flex-shrink-0">
+                            <div className="text-center space-y-2">
+                              <div className="flex justify-center">
+                                <Clock className="w-4 h-4 text-blue-500" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">{step.approverRole}</p>
+                                <p className="text-xs text-gray-500">{step.approverName}</p>
+                                <p className="text-xs text-gray-400">{step.organizationName}</p>
+                                {step.isRequired && (
+                                  <Badge variant="outline" className="text-xs">필수</Badge>
+                                )}
+                              </div>
+                            </div>
+                            {index < approvalPreview.steps.length - 1 && (
+                              <div className="flex justify-center mt-2">
+                                <ArrowRight className="w-4 h-4 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {approvalPreview.warnings && approvalPreview.warnings.length > 0 && (
+                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="text-sm text-yellow-800">
+                            <strong>주의사항:</strong>
+                            <ul className="mt-1 ml-4 list-disc">
+                              {approvalPreview.warnings.map((warning, i) => (
+                                <li key={i}>{warning}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center text-sm text-gray-500">결재선을 생성할 수 없습니다.</div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            
             {/* 결재담당자 선택 */}
-            {!isEditing && (
+            {!isEditing && !useOrgApproval && (
               <div className="space-y-4">
                 <Label>결재담당자 지정</Label>
                 
@@ -602,12 +881,13 @@ export function ExpenseReportForm({
             >
               취소
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || hasDataError}>
               {isLoading ? '처리 중...' : (isEditing ? '수정' : '작성')}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+    </ErrorBoundary>
   )
 }

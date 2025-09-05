@@ -24,7 +24,8 @@ import {
   Star,
   Music,
   Mic,
-  Calculator
+  Calculator,
+  Loader2
 } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
 
@@ -497,9 +498,10 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
     // 데이터베이스에서 해당 이름의 역할 찾기
     const existingRole = roles.find(r => r.name === groupRoleName)
     if (existingRole) {
+      // 기존 역할인 경우 로컬 상태만 변경 (자동 저장하지 않음)
       handleRoleToggle(selectedOrgId, existingRole.id, assigned)
     } else if (assigned) {
-      // 새로운 직책을 데이터베이스에 생성
+      // 새로운 직책인 경우에만 즉시 생성 (필요한 경우)
       try {
         setIsLoading(true)
         const groupRoleTemplate = ROLE_GROUPS
@@ -514,16 +516,10 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
             description: `${groupRoleTemplate.name} 직책`
           })
           
-          // 새 직책을 생성한 후 바로 할당
-          await bulkAssignMutation.mutateAsync({
-            organizationId: selectedOrgId,
-            roleIds: [newRole.id],
-            replaceExisting: false,
-            autoInheritToChildren: false
-          })
+          // 새 직책을 생성한 후 로컬 상태에만 반영 (자동 할당하지 않음)
+          // 사용자가 저장 버튼을 클릭해야 실제로 할당됨
           
-          // 데이터 새로고침
-          await refetchAssignments()
+          // 데이터 새로고침 (새 직책이 목록에 나타나도록)
           window.location.reload() // roles 데이터도 새로고침하기 위해
         }
       } catch (error) {
@@ -656,36 +652,57 @@ export function RoleManagementTab({ organizations, roles }: RoleManagementTabPro
                   </div>
                 </div>
 
-                {/* 변경사항 알림 */}
-                {hasUnsavedChanges && (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription className="flex items-center justify-between">
-                      <span>
-                        {changedAssignments.length}개의 변경사항이 있습니다.
-                      </span>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={handleSaveChanges}
-                          disabled={isLoading}
-                        >
-                          <Save className="h-3 w-3 mr-1" />
-                          저장
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleResetChanges}
-                          disabled={isLoading}
-                        >
-                          <RotateCcw className="h-3 w-3 mr-1" />
-                          취소
-                        </Button>
+                {/* 저장 버튼 영역 */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <div className="flex-1">
+                    {hasUnsavedChanges ? (
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-medium text-amber-700">
+                          {changedAssignments.length}개의 변경사항이 있습니다.
+                        </span>
                       </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm font-medium text-green-700">
+                          저장된 상태입니다.
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-600 mt-1">
+                      직책을 선택하고 저장 버튼을 클릭하여 적용하세요. 하위 조직에도 자동으로 상속됩니다.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResetChanges}
+                      disabled={isLoading || !hasUnsavedChanges}
+                    >
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      취소
+                    </Button>
+                    <Button
+                      onClick={handleSaveChanges}
+                      disabled={isLoading || !hasUnsavedChanges}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          저장 중...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-3 w-3 mr-1" />
+                          저장 및 하위 조직 적용
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

@@ -18,6 +18,8 @@ import { organizationRolesRouter } from './organization-roles'
 import { organizationRoleAssignmentsRouter } from './organization-role-assignments'
 import { organizationStatisticsRouter } from './organization-statistics'
 import { departmentsRouter } from './departments'
+import { approvalsRouter } from './approvals'
+import { passwordRouter } from './password'
 
 export const appRouter = router({
   members: membersRouter,
@@ -39,6 +41,8 @@ export const appRouter = router({
   organizationRoleAssignments: organizationRoleAssignmentsRouter,
   organizationStatistics: organizationStatisticsRouter,
   departments: departmentsRouter,
+  approvals: approvalsRouter,
+  password: passwordRouter,
 })
 
 export type AppRouter = typeof appRouter

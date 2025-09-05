@@ -50,8 +50,10 @@ export const passwordRouter = router({
           if (!isCurrentPasswordValid) {
             logger.warn('Password change attempt with invalid current password', {
               userId,
-              email: user.email,
-              action: 'password_change_invalid_current'
+              action: 'password_change_invalid_current',
+              metadata: {
+                email: user.email
+              }
             })
             
             throw new TRPCError({
@@ -76,9 +78,11 @@ export const passwordRouter = router({
 
         logger.info('Password changed successfully', {
           userId,
-          email: user.email,
-          wasRequired: user.passwordChangeRequired,
-          action: 'password_changed'
+          action: 'password_changed',
+          metadata: {
+            email: user.email,
+            wasRequired: user.passwordChangeRequired
+          }
         })
 
         return {
@@ -178,8 +182,10 @@ export const passwordRouter = router({
 
         logger.info('Initial password set successfully', {
           userId,
-          email: user.email,
-          action: 'initial_password_set'
+          action: 'initial_password_set',
+          metadata: {
+            email: user.email
+          }
         })
 
         return {

@@ -23,6 +23,7 @@ import {
   Menu,
   Calculator,
   PieChart,
+  CheckSquare,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -66,6 +67,12 @@ const navigationItems = [
     title: '지출결의서',
     href: '/dashboard/expense-reports',
     icon: FileText,
+    permission: 'expenses',
+  },
+  {
+    title: '결재 관리',
+    href: '/dashboard/approvals',
+    icon: CheckSquare,
     permission: 'expenses',
   },
   {

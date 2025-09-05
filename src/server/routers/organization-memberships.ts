@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { router, protectedProcedure, adminProcedure } from '@/lib/trpc/server'
 import { TRPCError } from '@trpc/server'
 import type { PrismaClient, MembershipChangeType, OrganizationMembership } from '@prisma/client'
+import { createUserAccountIfNeeded, updateUserRoleIfNeeded, removeUserAccountIfNeeded } from '@/lib/organization/auto-user-creation'
+import { logger } from '@/lib/logger'
 
 // Helper function to track membership changes
 async function createMembershipHistory(
@@ -31,7 +33,10 @@ const membershipCreateSchema = z.object({
   organizationId: z.string().min(1, '조직을 선택해주세요'),
   roleId: z.string().optional(),
   isPrimary: z.boolean().default(false),
-  joinDate: z.date().optional(),
+  joinDate: z.union([
+    z.string().transform((str) => new Date(str)),
+    z.date()
+  ]).optional(),
   notes: z.string().optional(),
 })
 
@@ -39,7 +44,10 @@ const membershipUpdateSchema = z.object({
   id: z.string(),
   roleId: z.string().optional().nullable(),
   isPrimary: z.boolean().optional(),
-  endDate: z.date().optional().nullable(),
+  endDate: z.union([
+    z.string().transform((str) => new Date(str)),
+    z.date()
+  ]).optional().nullable(),
   notes: z.string().optional(),
 })
 
@@ -295,41 +303,89 @@ export const organizationMembershipsRouter = router({
         }
       }
 
-      return await ctx.prisma.organizationMembership.create({
-        data: {
-          memberId,
-          organizationId,
-          roleId,
-          isPrimary,
-          joinDate: joinDate || new Date(),
-          notes,
-        },
-        include: {
-          member: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              email: true,
+      // 트랜잭션으로 멤버십 생성 및 사용자 계정 자동 생성
+      return await ctx.prisma.$transaction(async (tx) => {
+        // 1. 조직 멤버십 생성
+        const membership = await tx.organizationMembership.create({
+          data: {
+            memberId,
+            organizationId,
+            roleId,
+            isPrimary,
+            joinDate: joinDate || new Date(),
+            notes,
+          },
+          include: {
+            member: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+                email: true,
+              },
+            },
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+            role: {
+              select: {
+                id: true,
+                name: true,
+                englishName: true,
+                level: true,
+                isLeadership: true,
+              },
             },
           },
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-            },
-          },
-          role: {
-            select: {
-              id: true,
-              name: true,
-              englishName: true,
-              level: true,
-              isLeadership: true,
-            },
-          },
-        },
+        })
+
+        // 2. 자동 사용자 계정 생성 (필요한 경우)
+        if (membership.role && member.email) {
+          try {
+            // 완전한 role 객체 조회
+            const fullRole = await tx.organizationRole.findUnique({
+              where: { id: membership.role.id }
+            })
+            
+            if (fullRole) {
+              const createdUser = await createUserAccountIfNeeded(
+                tx,
+                member,
+                fullRole,
+                ctx.session.user.churchId
+              )
+
+              if (createdUser) {
+                logger.info('User account auto-created with membership', {
+                  userId: createdUser.id,
+                  action: 'membership_with_user_created',
+                  metadata: {
+                    memberId: member.id,
+                    roleName: membership.role.name,
+                    email: member.email
+                  }
+                })
+              }
+            }
+          } catch (error) {
+            // 사용자 계정 생성 실패 시에도 멤버십은 유지
+            logger.warn('Failed to auto-create user account, but membership created', {
+              action: 'membership_created_user_failed',
+              metadata: {
+                memberId: member.id,
+                roleName: membership.role?.name,
+                email: member.email,
+                error: (error as Error).message
+              }
+            })
+          }
+        }
+
+        return membership
       })
     }),
 

@@ -51,6 +51,7 @@ export interface NotificationConfig {
     url: string
   }
   queue: {
+    enabled: boolean
     retryDelayMs: number
     maxRetries: number
     batchSize: number
@@ -92,6 +93,14 @@ export interface NotificationTemplateData {
   expenseList?: string
   overdueCount?: number
   requesterName?: string
+  
+  // 결재 시스템 변수
+  organizationName?: string
+  approvalStatus?: string
+  approvalUrl?: string
+  dashboardUrl?: string
+  escalationUrl?: string
+  delayedHours?: number
   
   // 시스템 변수
   announcementTitle?: string

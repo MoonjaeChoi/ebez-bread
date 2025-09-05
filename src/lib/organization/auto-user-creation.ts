@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { generatePassword, hashPassword } from '@/lib/password'
+import { hashPassword } from '@/lib/password'
 import { 
   shouldCreateUserAccount, 
   mapOrganizationRoleToUserRole,
@@ -22,10 +22,12 @@ export async function createUserAccountIfNeeded(
   // 계정 생성이 필요한 직책인지 확인
   if (!shouldCreateUserAccount(roleName)) {
     logger.info('User account not required for role', {
-      memberId: member.id,
-      memberName: member.name,
-      roleName,
-      action: 'skip_user_creation'
+      action: 'skip_user_creation',
+      metadata: {
+        memberId: member.id,
+        memberName: member.name,
+        roleName
+      }
     })
     return null
   }
@@ -34,10 +36,12 @@ export async function createUserAccountIfNeeded(
     // 이메일이 없는 경우 생성 불가 (먼저 확인)
     if (!member.email) {
       logger.warn('Cannot create user account - no email', {
-        memberId: member.id,
-        memberName: member.name,
-        roleName,
-        action: 'user_creation_failed_no_email'
+        action: 'user_creation_failed_no_email',
+        metadata: {
+          memberId: member.id,
+          memberName: member.name,
+          roleName
+        }
       })
       return null
     }
@@ -49,10 +53,12 @@ export async function createUserAccountIfNeeded(
 
     if (existingUser) {
       logger.info('User account already exists', {
-        memberId: member.id,
         userId: existingUser.id,
-        email: member.email,
-        action: 'user_account_exists'
+        action: 'user_account_exists',
+        metadata: {
+          memberId: member.id,
+          email: member.email
+        }
       })
       return existingUser
     }
@@ -82,13 +88,14 @@ export async function createUserAccountIfNeeded(
 
     logger.info('User account created successfully', {
       userId: newUser.id,
-      memberId: member.id,
-      email: member.email,
-      role: userRole,
-      roleName,
-      authorityLevel: roleCapabilities.authorityLevel,
-      // tempPassword는 이메일과 동일하므로 로그에서 제외
-      action: 'user_account_created'
+      action: 'user_account_created',
+      metadata: {
+        memberId: member.id,
+        email: member.email,
+        role: userRole,
+        roleName,
+        authorityLevel: roleCapabilities.authorityLevel
+      }
     })
 
     // TODO: 이메일 또는 SMS로 로그인 정보 전송
@@ -98,11 +105,13 @@ export async function createUserAccountIfNeeded(
 
   } catch (error) {
     logger.error('Failed to create user account', error as Error, {
-      memberId: member.id,
-      memberName: member.name,
-      email: member.email,
-      roleName,
-      action: 'user_creation_error'
+      action: 'user_creation_error',
+      metadata: {
+        memberId: member.id,
+        memberName: member.name,
+        email: member.email,
+        roleName
+      }
     })
     throw error
   }
@@ -115,7 +124,7 @@ export async function createUserAccountIfNeeded(
  */
 async function sendLoginCredentials(
   member: Member,
-  tempPassword: string,
+  _tempPassword: string,
   roleCapabilities: ReturnType<typeof getRoleCapabilities>
 ) {
   // 알림 메시지 템플릿
@@ -143,11 +152,13 @@ async function sendLoginCredentials(
 
   // TODO: 실제 알림 발송 로직 구현
   logger.info('Login credentials prepared for sending', {
-    memberId: member.id,
-    email: member.email,
-    hasPhone: !!member.phone,
-    roleName: roleCapabilities.roleName,
-    action: 'credentials_prepared'
+    action: 'credentials_prepared',
+    metadata: {
+      memberId: member.id,
+      email: member.email,
+      hasPhone: !!member.phone,
+      roleName: roleCapabilities.roleName
+    }
   })
 
   // 개발 환경에서는 콘솔에 출력
@@ -203,17 +214,21 @@ export async function removeUserAccountIfNeeded(
 
       logger.info('User account deactivated', {
         userId: user.id,
-        email: memberEmail,
-        removedRole: roleName,
-        action: 'user_account_deactivated'
+        action: 'user_account_deactivated',
+        metadata: {
+          email: memberEmail,
+          removedRole: roleName
+        }
       })
     }
 
   } catch (error) {
     logger.error('Failed to remove user account', error as Error, {
-      memberEmail,
-      roleName,
-      action: 'user_removal_error'
+      action: 'user_removal_error',
+      metadata: {
+        memberEmail,
+        roleName
+      }
     })
   }
 }
@@ -248,21 +263,25 @@ export async function updateUserRoleIfNeeded(
 
       logger.info('User role updated', {
         userId: user.id,
-        email: memberEmail,
-        oldRole: oldCapabilities.userRole,
-        newRole: newCapabilities.userRole,
-        oldRoleName,
-        newRoleName,
-        action: 'user_role_updated'
+        action: 'user_role_updated',
+        metadata: {
+          email: memberEmail,
+          oldRole: oldCapabilities.userRole,
+          newRole: newCapabilities.userRole,
+          oldRoleName,
+          newRoleName
+        }
       })
     }
 
   } catch (error) {
     logger.error('Failed to update user role', error as Error, {
-      memberEmail,
-      oldRoleName,
-      newRoleName,
-      action: 'user_role_update_error'
+      action: 'user_role_update_error',
+      metadata: {
+        memberEmail,
+        oldRoleName,
+        newRoleName
+      }
     })
   }
 }

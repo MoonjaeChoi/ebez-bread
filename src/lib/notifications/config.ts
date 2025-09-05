@@ -18,6 +18,7 @@ export const notificationConfig: NotificationConfig = {
     url: getEnvVar('NOTIFICATION_QUEUE_REDIS_URL', 'redis://localhost:6379/1'),
   },
   queue: {
+    enabled: getEnvVar('NOTIFICATION_QUEUE_ENABLED', 'true') === 'true',
     retryDelayMs: parseInt(getEnvVar('NOTIFICATION_RETRY_DELAY_MS', '60000')),
     maxRetries: parseInt(getEnvVar('NOTIFICATION_MAX_RETRIES', '3')),
     batchSize: parseInt(getEnvVar('NOTIFICATION_BATCH_SIZE', '50')),
@@ -30,4 +31,8 @@ export const isEmailEnabled = (): boolean => {
 
 export const isSMSEnabled = (): boolean => {
   return !!(notificationConfig.sms.accountSid && notificationConfig.sms.authToken)
+}
+
+export const isQueueEnabled = (): boolean => {
+  return notificationConfig.queue.enabled
 }

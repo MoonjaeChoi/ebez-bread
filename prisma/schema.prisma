@@ -36,6 +36,8 @@ model Church {
   transactions          Transaction[]
   users                 User[]
   visitations           Visitation[]
+  // 결재 관련 relations 추가
+  approvalMatrices      ApprovalMatrix[]
 
   @@map("churches")
 }
@@ -47,6 +49,8 @@ model User {
   phone                    String?
   role                     UserRole             @default(GENERAL_USER)
   isActive                 Boolean              @default(true)
+  passwordChangeRequired   Boolean              @default(false)
+  lastPasswordChange       DateTime?
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
   churchId                 String
@@ -62,6 +66,12 @@ model User {
   notificationSettings     NotificationSetting?
   pushSubscription         PushSubscription?
   createdTransactions      Transaction[]        @relation("TransactionCreator")
+  // 결재 관련 relations 추가
+  requestedTransactions    Transaction[]        @relation("TransactionRequester")
+  requestedApprovalFlows   ApprovalFlow[]       @relation("ApprovalRequester")
+  transactionApprovalSteps TransactionApprovalStep[] @relation("TransactionApprovalStepApprover")
+  createdApprovalMatrices  ApprovalMatrix[]     @relation("ApprovalMatrixCreator")
+  
   church                   Church               @relation(fields: [churchId], references: [id], onDelete: Cascade)
   responsibleOrganizations Organization[]       @relation("OrganizationResponsible")
   createdOrganizations     Organization[]       @relation("OrganizationCreatedBy")
@@ -462,23 +472,44 @@ model BudgetChange {
 }
 
 model Transaction {
-  id              String      @id @default(cuid())
+  id              String          @id @default(cuid())
   description     String
-  amount          Decimal     @db.Decimal(15, 2)
+  amount          Decimal         @db.Decimal(15, 2)
   transactionDate DateTime
   reference       String?
   voucherNumber   String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   debitAccountId  String
   creditAccountId String
   churchId        String
   createdById     String
-  church          Church      @relation(fields: [churchId], references: [id])
-  createdBy       User        @relation("TransactionCreator", fields: [createdById], references: [id])
-  creditAccount   AccountCode @relation("CreditAccount", fields: [creditAccountId], references: [id])
-  debitAccount    AccountCode @relation("DebitAccount", fields: [debitAccountId], references: [id])
-
+  
+  // 결재 관련 필드 추가
+  status          TransactionStatus @default(DRAFT)
+  organizationId  String?         // 요청 조직
+  requesterId     String?         // 요청자 (createdBy와 다를 수 있음)
+  category        ApprovalMatrixCategory?
+  submittedAt     DateTime?       // 결재 제출일
+  approvedAt      DateTime?       // 최종 승인일
+  rejectedAt      DateTime?       // 반려일
+  rejectionReason String?         // 반려 사유
+  
+  // Relations
+  church          Church          @relation(fields: [churchId], references: [id])
+  createdBy       User            @relation("TransactionCreator", fields: [createdById], references: [id])
+  requester       User?           @relation("TransactionRequester", fields: [requesterId], references: [id])
+  organization    Organization?   @relation("TransactionOrganization", fields: [organizationId], references: [id])
+  creditAccount   AccountCode     @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  debitAccount    AccountCode     @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  
+  // 결재 워크플로우 연결
+  approvalFlow    ApprovalFlow?
+  
+  @@index([status])
+  @@index([organizationId])
+  @@index([requesterId])
+  @@index([category])
   @@map("transactions")
 }
 
@@ -503,6 +534,12 @@ model Organization {
   organizationMemberships OrganizationMembership[]
   roleAssignments         OrganizationRoleAssignment[]
   inheritedRoleAssignments OrganizationRoleAssignment[] @relation("RoleInheritanceFrom")
+  // 결재 관련 relations 추가
+  transactions            Transaction[]            @relation("TransactionOrganization")
+  approvalFlows           ApprovalFlow[]
+  transactionApprovalSteps TransactionApprovalStep[] @relation("TransactionApprovalStepOrganization")
+  approvalMatrices        ApprovalMatrix[]         @relation("ApprovalMatrixOrganization")
+  
   church                  Church                   @relation(fields: [churchId], references: [id], onDelete: Cascade)
   parent                  Organization?            @relation("OrganizationHierarchy", fields: [parentId], references: [id])
   children                Organization[]           @relation("OrganizationHierarchy")
@@ -814,4 +851,175 @@ enum MembershipChangeType {
   DEACTIVATED
   TRANSFERRED_IN
   TRANSFERRED_OUT
+}
+
+// 결재 관련 Enum 타입들
+enum TransactionStatus {
+  DRAFT          // 임시저장
+  PENDING        // 결재 대기
+  IN_REVIEW      // 결재 중
+  APPROVED       // 승인 완료
+  REJECTED       // 반려
+  CANCELLED      // 취소
+}
+
+enum ApprovalFlowStatus {
+  PENDING        // 결재 대기
+  IN_PROGRESS    // 결재 진행 중
+  APPROVED       // 최종 승인
+  REJECTED       // 반려
+  ESCALATED      // 에스컬레이션
+  CANCELLED      // 취소
+}
+
+enum ApprovalStepStatus {
+  PENDING        // 결재 대기
+  APPROVED       // 승인
+  REJECTED       // 반려
+  SKIPPED        // 건너뜀
+  ESCALATED      // 상위로 에스컬레이션
+  DELEGATED      // 위임
+}
+
+enum ApprovalMatrixCategory {
+  MINISTRY       // 사역비
+  SUPPLIES       // 소모품
+  EQUIPMENT      // 장비/기자재
+  EVENT          // 행사비
+  CONSTRUCTION   // 건축/시설
+  FACILITIES     // 시설 운영
+  SALARY         // 인건비
+  BONUS          // 상여금
+  BENEFITS       // 복리후생
+  UTILITIES      // 공과금
+  MAINTENANCE    // 유지보수
+  OTHER          // 기타
+}
+
+// 결재 워크플로우 모델
+model ApprovalFlow {
+  id              String              @id @default(cuid())
+  transactionId   String              @unique
+  transaction     Transaction         @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  totalSteps      Int
+  currentStep     Int                 @default(1)
+  status          ApprovalFlowStatus  @default(PENDING)
+  
+  // 결재 요청 정보
+  requesterId     String
+  requester       User                @relation("ApprovalRequester", fields: [requesterId], references: [id])
+  organizationId  String
+  organization    Organization        @relation(fields: [organizationId], references: [id])
+  
+  // 결재 메타 정보
+  amount          Decimal             @db.Decimal(15, 2)
+  category        ApprovalMatrixCategory
+  priority        String              @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  
+  steps           TransactionApprovalStep[]
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  completedAt     DateTime?
+  
+  @@index([status])
+  @@index([requesterId])
+  @@index([organizationId])
+  @@map("approval_flows")
+}
+
+model TransactionApprovalStep {
+  id              String              @id @default(cuid())
+  flowId          String
+  flow            ApprovalFlow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  
+  stepOrder       Int
+  approverId      String
+  approver        User                @relation("TransactionApprovalStepApprover", fields: [approverId], references: [id])
+  approverRole    String              // 결재 당시의 직책명 (이력 보존)
+  organizationId  String
+  organization    Organization        @relation("TransactionApprovalStepOrganization", fields: [organizationId], references: [id])
+  
+  status          ApprovalStepStatus  @default(PENDING)
+  isRequired      Boolean             @default(true)
+  isParallel      Boolean             @default(false) // 병렬 결재 여부
+  
+  // 결재 처리 정보
+  processedAt     DateTime?
+  comments        String?
+  attachments     String?             // JSON array of file URLs
+  
+  // 에스컬레이션 정보
+  escalatedFrom   String?             // 원래 결재자 ID
+  escalatedTo     String?             // 에스컬레이션 대상자 ID
+  escalationReason String?
+  timeoutHours    Int?                @default(24)
+  
+  // 위임 정보
+  delegatedFrom   String?             // 위임자 ID
+  delegatedTo     String?             // 피위임자 ID
+  delegationReason String?
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  
+  @@index([flowId])
+  @@index([approverId])
+  @@index([status])
+  @@index([stepOrder])
+  @@map("transaction_approval_steps")
+}
+
+// 결재 매트릭스 설정
+model ApprovalMatrix {
+  id              String              @id @default(cuid())
+  name            String
+  description     String?
+  churchId        String
+  church          Church              @relation(fields: [churchId], references: [id], onDelete: Cascade)
+  
+  // 적용 조건
+  category        ApprovalMatrixCategory
+  minAmount       Decimal?            @db.Decimal(15, 2)
+  maxAmount       Decimal?            @db.Decimal(15, 2)
+  organizationId  String?             // 특정 조직에만 적용
+  organization    Organization?       @relation("ApprovalMatrixOrganization", fields: [organizationId], references: [id])
+  
+  // 결재선 설정
+  approvalLevels  ApprovalMatrixLevel[]
+  
+  isActive        Boolean             @default(true)
+  priority        Int                 @default(0) // 높을수록 우선 적용
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdById     String
+  createdBy       User                @relation("ApprovalMatrixCreator", fields: [createdById], references: [id])
+  
+  @@index([churchId])
+  @@index([category])
+  @@index([organizationId])
+  @@map("approval_matrices")
+}
+
+// 결재 매트릭스 레벨 설정
+model ApprovalMatrixLevel {
+  id              String              @id @default(cuid())
+  matrixId        String
+  matrix          ApprovalMatrix      @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  
+  levelOrder      Int
+  requiredRoles   String[]            // 필요한 직책들 (JSON array)
+  organizationLevel String            // SAME, PARENT, ROOT
+  isRequired      Boolean             @default(true)
+  isParallel      Boolean             @default(false)
+  timeoutHours    Int                 @default(24)
+  
+  // 에스컬레이션 룰
+  escalationRules String?             // JSON array of escalation rules
+  
+  @@index([matrixId])
+  @@index([levelOrder])
+  @@map("approval_matrix_levels")
 }

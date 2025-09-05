@@ -1,7 +1,7 @@
 // BullMQ-based notification queue implementation
 import { Queue, Worker, Job } from 'bullmq'
 import Redis from 'ioredis'
-import { notificationConfig } from './config'
+import { notificationConfig, isQueueEnabled } from './config'
 import { NotificationPayload, QueueProcessResult, NotificationTemplateData } from './types'
 import { NotificationChannel, NotificationStatus, NotificationPriority } from '@prisma/client'
 import { prisma } from '@/lib/db'
@@ -55,6 +55,12 @@ export class BullNotificationQueue {
   }
 
   private initializeWorkers() {
+    // Skip initializing workers if notifications are disabled
+    if (!isQueueEnabled()) {
+      logger.info('Notification queue is disabled, skipping worker initialization')
+      return
+    }
+
     const priorities = Object.values(NotificationPriority)
     
     priorities.forEach(priority => {
@@ -149,6 +155,12 @@ export class BullNotificationQueue {
 
   async enqueue(payload: NotificationPayload): Promise<string> {
     try {
+      // Skip queueing if notifications are disabled
+      if (!isQueueEnabled()) {
+        logger.info('Notification queue is disabled, skipping:', { type: payload.type })
+        return 'disabled'
+      }
+
       // Create notification in database
       const notification = await prisma.notificationQueue.create({
         data: {

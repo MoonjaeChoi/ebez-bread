@@ -246,18 +246,18 @@ export default function SignInPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">이메일:</span>
                   <Badge variant="outline" className="font-mono text-xs">
-                    admin@gcchurch.kr
+                    admin@gc.kr
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">비밀번호:</span>
                   <Badge variant="outline" className="font-mono text-xs">
-                    password
+                    admin123
                   </Badge>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                위 계정으로 시스템의 모든 기능을 체험해보실 수 있습니다.
+                정실장 계정(Super Admin) - 시스템의 모든 기능에 접근 가능합니다.
               </p>
             </CardContent>
           </Card>

@@ -35,6 +35,8 @@ interface ExpenseReportDetailProps {
   onClose: () => void
   reportId: string
   showSubmitButton?: boolean
+  useOrganizationApproval?: boolean
+  stepId?: string // For organization-based approval
   onRefresh?: () => void
 }
 
@@ -43,6 +45,8 @@ export function ExpenseReportDetail({
   onClose, 
   reportId,
   showSubmitButton = false,
+  useOrganizationApproval = false,
+  stepId,
   onRefresh
 }: ExpenseReportDetailProps) {
   const [showWorkflowApproval, setShowWorkflowApproval] = useState(false)
@@ -55,9 +59,15 @@ export function ExpenseReportDetail({
   const { data: approvalPermission } = trpc.expenseReports.checkApprovalPermission.useQuery(
     { expenseReportId: reportId },
     { 
-      enabled: !!reportId && isOpen && !!report && report.workflowStatus === 'IN_PROGRESS',
+      enabled: !!reportId && isOpen && !!report && report.workflowStatus === 'IN_PROGRESS' && !useOrganizationApproval,
       refetchOnWindowFocus: false,
     }
+  )
+  
+  // Get organization-based approval flow data
+  const { data: approvalFlow } = trpc.approvals.getApprovalFlowByTransaction.useQuery(
+    { transactionId: reportId },
+    { enabled: !!reportId && isOpen && useOrganizationApproval }
   )
 
   const submitMutation = trpc.expenseReports.submit.useMutation({
@@ -191,81 +201,159 @@ export function ExpenseReportDetail({
             </div>
           </DialogTitle>
           <DialogDescription>
-            3단계 전자결재 시스템을 통한 지출결의서 상세 정보입니다.
+            {useOrganizationApproval 
+              ? '조직 기반 자동 결재를 통한 지출결의서 상세 정보입니다.'
+              : '3단계 전자결재 시스템을 통한 지출결의서 상세 정보입니다.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* 워크플로우 진행 상황 */}
-          {report.approvals && report.approvals.length > 0 && (
+          {/* 결재 진행 상황 */}
+          {((useOrganizationApproval && approvalFlow) || (!useOrganizationApproval && report.approvals && report.approvals.length > 0)) && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2">
                   <Shield className="w-5 h-5" />
                   <span>결재 진행 상황</span>
-                  {report.workflowStatus && getWorkflowStatusBadge(report.workflowStatus)}
+                  {useOrganizationApproval && approvalFlow ? (
+                    <Badge variant={approvalFlow.status === 'PENDING' ? 'secondary' : 
+                                   approvalFlow.status === 'IN_PROGRESS' ? 'default' :
+                                   approvalFlow.status === 'APPROVED' ? 'default' :
+                                   approvalFlow.status === 'REJECTED' ? 'destructive' : 'outline'}>
+                      {approvalFlow.status === 'PENDING' ? '대기' :
+                       approvalFlow.status === 'IN_PROGRESS' ? '진행중' :
+                       approvalFlow.status === 'APPROVED' ? '승인완료' :
+                       approvalFlow.status === 'REJECTED' ? '반려' : '알 수 없음'}
+                    </Badge>
+                  ) : (
+                    report.workflowStatus && getWorkflowStatusBadge(report.workflowStatus)
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between space-x-4">
-                  {report.approvals?.map((approval, index) => (
-                    <div key={approval.id} className="flex-1">
-                      <div className="text-center space-y-2">
-                        <div className="flex justify-center">
-                          {getStepIcon(
-                            approval.stepOrder, 
-                            approval.status, 
-                            report.currentStep === approval.stepOrder
+                {useOrganizationApproval && approvalFlow ? (
+                  // Organization-based approval visualization
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between space-x-4 overflow-x-auto">
+                      {approvalFlow.steps?.map((step, index) => (
+                        <div key={step.id} className="flex-shrink-0">
+                          <div className="text-center space-y-2">
+                            <div className="flex justify-center">
+                              {step.status === 'APPROVED' ? (
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              ) : step.status === 'REJECTED' ? (
+                                <XCircle className="w-4 h-4 text-red-600" />
+                              ) : approvalFlow.currentStep === step.stepOrder ? (
+                                <Clock className="w-4 h-4 text-yellow-600" />
+                              ) : (
+                                <Clock className="w-4 h-4 text-gray-400" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{step.approverRole}</p>
+                              <p className="text-xs text-gray-500">
+                                {step.approver ? step.approver.name : '미배정'}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {step.organization ? step.organization.name : ''}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {step.status === 'APPROVED' ? '승인완료' :
+                                 step.status === 'REJECTED' ? '반려' :
+                                 approvalFlow.currentStep === step.stepOrder ? '승인대기' : '대기'}
+                              </p>
+                              {step.isRequired && (
+                                <Badge variant="outline" className="text-xs mt-1">필수</Badge>
+                              )}
+                              {step.processedAt && (
+                                <p className={`text-xs mt-1 ${
+                                  step.status === 'APPROVED' ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {formatDate(new Date(step.processedAt))}
+                                </p>
+                              )}
+                              {step.comments && (
+                                <p className="text-xs text-gray-600 mt-1 p-1 bg-gray-100 rounded text-center">
+                                  {step.comments}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {index < approvalFlow.steps.length - 1 && (
+                            <div className="flex justify-center mt-2">
+                              <ArrowRight className="w-4 h-4 text-gray-400" />
+                            </div>
                           )}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">
-                            {getStepName(approval.stepOrder)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {approval.status === 'APPROVED' ? '승인 완료' :
-                             approval.status === 'REJECTED' ? '반려' :
-                             report.currentStep === approval.stepOrder ? '승인 대기' : '대기'}
-                          </p>
-                          {approval.approver && (
-                            <p className="text-xs text-gray-600 mt-1">
-                              {approval.approver.name}
-                            </p>
-                          )}
-                          {approval.approvedAt && (
-                            <p className="text-xs text-green-600 mt-1">
-                              {formatDate(new Date(approval.approvedAt))}
-                            </p>
-                          )}
-                          {approval.rejectedAt && (
-                            <p className="text-xs text-red-600 mt-1">
-                              {formatDate(new Date(approval.rejectedAt))}
-                            </p>
-                          )}
-                          {approval.comment && (
-                            <p className="text-xs text-gray-600 mt-1 p-1 bg-gray-100 rounded text-center">
-                              {approval.comment}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      {index < report.approvals.length - 1 && (
-                        <div className="flex justify-center mt-2">
-                          <ArrowRight className="w-4 h-4 text-gray-400" />
-                        </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
-                
-                <div className="mt-4 text-center text-sm text-gray-600">
-                  {report.workflowStatus === 'DRAFT' && '초안 상태입니다. 결재를 위해 제출해주세요.'}
-                  {report.workflowStatus === 'IN_PROGRESS' && (
-                    <>현재 단계: <strong>{getStepName(report.currentStep)}</strong> 승인 대기</>
-                  )}
-                  {report.workflowStatus === 'APPROVED' && '모든 단계의 승인이 완료되었습니다.'}
-                  {report.workflowStatus === 'REJECTED' && '결재 과정에서 반려되었습니다.'}
-                </div>
+                    <div className="mt-4 text-center text-sm text-gray-600">
+                      현재 단계: <strong>{approvalFlow.currentStep}/{approvalFlow.totalSteps}</strong>
+                    </div>
+                  </div>
+                ) : (
+                  // Legacy approval visualization
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between space-x-4">
+                      {report.approvals?.map((approval, index) => (
+                        <div key={approval.id} className="flex-1">
+                          <div className="text-center space-y-2">
+                            <div className="flex justify-center">
+                              {getStepIcon(
+                                approval.stepOrder, 
+                                approval.status, 
+                                report.currentStep === approval.stepOrder
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">
+                                {getStepName(approval.stepOrder)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {approval.status === 'APPROVED' ? '승인 완료' :
+                                 approval.status === 'REJECTED' ? '반려' :
+                                 report.currentStep === approval.stepOrder ? '승인 대기' : '대기'}
+                              </p>
+                              {approval.approver && (
+                                <p className="text-xs text-gray-600 mt-1">
+                                  {approval.approver.name}
+                                </p>
+                              )}
+                              {approval.approvedAt && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  {formatDate(new Date(approval.approvedAt))}
+                                </p>
+                              )}
+                              {approval.rejectedAt && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  {formatDate(new Date(approval.rejectedAt))}
+                                </p>
+                              )}
+                              {approval.comment && (
+                                <p className="text-xs text-gray-600 mt-1 p-1 bg-gray-100 rounded text-center">
+                                  {approval.comment}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {index < report.approvals.length - 1 && (
+                            <div className="flex justify-center mt-2">
+                              <ArrowRight className="w-4 h-4 text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 text-center text-sm text-gray-600">
+                      {report.workflowStatus === 'DRAFT' && '초안 상태입니다. 결재를 위해 제출해주세요.'}
+                      {report.workflowStatus === 'IN_PROGRESS' && (
+                        <>현재 단계: <strong>{getStepName(report.currentStep)}</strong> 승인 대기</>
+                      )}
+                      {report.workflowStatus === 'APPROVED' && '모든 단계의 승인이 완료되었습니다.'}
+                      {report.workflowStatus === 'REJECTED' && '결재 과정에서 반려되었습니다.'}
+                    </div>
+                  </div>
+                )}
 
                 {/* 제출/승인 버튼 */}
                 <div className="mt-4 flex justify-center space-x-2">
@@ -280,7 +368,8 @@ export function ExpenseReportDetail({
                     </Button>
                   )}
                   
-                  {report.workflowStatus === 'IN_PROGRESS' && approvalPermission?.canApprove && (
+                  {/* Legacy approval system */}
+                  {!useOrganizationApproval && report.workflowStatus === 'IN_PROGRESS' && approvalPermission?.canApprove && (
                     <Button 
                       onClick={() => setShowWorkflowApproval(true)}
                       className="flex items-center space-x-2"
@@ -290,11 +379,22 @@ export function ExpenseReportDetail({
                     </Button>
                   )}
                   
-                  {report.workflowStatus === 'IN_PROGRESS' && approvalPermission && !approvalPermission.canApprove && (
+                  {!useOrganizationApproval && report.workflowStatus === 'IN_PROGRESS' && approvalPermission && !approvalPermission.canApprove && (
                     <div className="text-center text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
                       <Shield className="w-4 h-4 mx-auto mb-1 text-gray-400" />
                       <p>{approvalPermission.message || '승인 권한이 없습니다'}</p>
                     </div>
+                  )}
+                  
+                  {/* Organization-based approval system */}
+                  {useOrganizationApproval && approvalFlow && approvalFlow.status === 'IN_PROGRESS' && stepId && (
+                    <Button 
+                      onClick={() => setShowWorkflowApproval(true)}
+                      className="flex items-center space-x-2"
+                    >
+                      <Shield className="w-4 h-4" />
+                      <span>승인 처리</span>
+                    </Button>
                   )}
                 </div>
               </CardContent>
@@ -494,6 +594,8 @@ export function ExpenseReportDetail({
           isOpen={showWorkflowApproval}
           onClose={() => setShowWorkflowApproval(false)}
           reportId={reportId}
+          stepId={stepId}
+          useOrganizationApproval={useOrganizationApproval}
           onSuccess={() => {
             refetch()
             onRefresh?.()

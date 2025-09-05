@@ -1,5 +1,5 @@
 import Redis from 'ioredis'
-import { notificationConfig } from './config'
+import { notificationConfig, isQueueEnabled } from './config'
 import { NotificationPayload, QueueProcessResult } from './types'
 import { NotificationChannel, NotificationStatus, NotificationPriority } from '@prisma/client'
 import { prisma } from '@/lib/db'
@@ -38,6 +38,12 @@ class NotificationQueue {
 
   async enqueue(payload: NotificationPayload): Promise<string> {
     try {
+      // Skip queueing if notifications are disabled
+      if (!isQueueEnabled()) {
+        console.log('Notification queue is disabled, skipping:', payload.type)
+        return 'disabled'
+      }
+
       // Create notification in database
       const notification = await prisma.notificationQueue.create({
         data: {
@@ -107,6 +113,12 @@ class NotificationQueue {
 
   async processQueue(): Promise<void> {
     if (this.isProcessing || !this.redis) {
+      return
+    }
+
+    // Skip processing if notifications are disabled
+    if (!isQueueEnabled()) {
+      console.log('Notification queue is disabled, skipping processing')
       return
     }
 

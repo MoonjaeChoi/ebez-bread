@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { trpc } from '@/lib/trpc/client'
+import type { ProcessApprovalRequest } from '@/types/approval'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -44,6 +45,8 @@ interface ExpenseWorkflowApprovalProps {
   isOpen: boolean
   onClose: () => void
   reportId: string
+  stepId?: string // For new organization-based approval system
+  useOrganizationApproval?: boolean // Flag to determine which system to use
   onSuccess?: () => void
 }
 
@@ -51,6 +54,8 @@ export function ExpenseWorkflowApproval({
   isOpen, 
   onClose, 
   reportId,
+  stepId,
+  useOrganizationApproval = false,
   onSuccess 
 }: ExpenseWorkflowApprovalProps) {
   const [selectedAction, setSelectedAction] = useState<string>('')
@@ -60,6 +65,7 @@ export function ExpenseWorkflowApproval({
     { enabled: !!reportId && isOpen }
   )
 
+  // Legacy approval system mutation
   const workflowApproveMutation = trpc.expenseReports.approveWorkflowStep.useMutation({
     onSuccess: () => {
       const actionText = selectedAction === 'APPROVE' ? '승인되었습니다' : '반려되었습니다'
@@ -71,6 +77,25 @@ export function ExpenseWorkflowApproval({
       toast.error(error.message)
     },
   })
+  
+  // New organization-based approval system mutation
+  const processApprovalMutation = trpc.approvals.processApproval.useMutation({
+    onSuccess: () => {
+      const actionText = selectedAction === 'APPROVE' ? '승인되었습니다' : '반려되었습니다'
+      toast.success(`지출결의서가 ${actionText}`)
+      handleClose()
+      onSuccess?.()
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+  
+  // Get approval flow data for organization-based system
+  const { data: approvalFlow } = trpc.approvals.getApprovalFlowByTransaction.useQuery(
+    { transactionId: reportId },
+    { enabled: !!reportId && isOpen && useOrganizationApproval }
+  )
 
   const {
     register,
@@ -108,11 +133,23 @@ export function ExpenseWorkflowApproval({
       return
     }
 
-    workflowApproveMutation.mutate({
-      expenseReportId: reportId,
-      action: data.action,
-      comment: data.comment,
-    })
+    if (useOrganizationApproval && stepId) {
+      // Use new organization-based approval system
+      const approvalRequest: ProcessApprovalRequest = {
+        stepId: stepId,
+        approverId: '', // Will be filled by server from session
+        action: data.action,
+        comments: data.comment,
+      }
+      processApprovalMutation.mutate(approvalRequest)
+    } else {
+      // Use legacy approval system
+      workflowApproveMutation.mutate({
+        expenseReportId: reportId,
+        action: data.action,
+        comment: data.comment,
+      })
+    }
   }
 
   const formatCurrency = (amount: number) => {
@@ -168,7 +205,7 @@ export function ExpenseWorkflowApproval({
     }
   }
 
-  const isLoading = workflowApproveMutation.isLoading
+  const isLoading = workflowApproveMutation.isLoading || processApprovalMutation.isLoading
 
   if (isLoadingReport) {
     return (
@@ -199,7 +236,9 @@ export function ExpenseWorkflowApproval({
             <span>전자결재 승인 처리</span>
           </DialogTitle>
           <DialogDescription>
-            3단계 전자결재 시스템에 따른 지출결의서 승인을 처리해주세요.
+            {useOrganizationApproval 
+              ? '조직 기반 자동 결재선에 따른 지출결의서 승인을 처리해주세요.' 
+              : '3단계 전자결재 시스템에 따른 지출결의서 승인을 처리해주세요.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,43 +248,107 @@ export function ExpenseWorkflowApproval({
             <CardHeader>
               <CardTitle className="text-lg flex items-center space-x-2">
                 <span>결재 진행 상황</span>
-                {getWorkflowStatusBadge(report.workflowStatus)}
+                {useOrganizationApproval ? (
+                  <Badge variant={approvalFlow?.status === 'PENDING' ? 'secondary' : 
+                                 approvalFlow?.status === 'IN_PROGRESS' ? 'default' :
+                                 approvalFlow?.status === 'APPROVED' ? 'default' :
+                                 approvalFlow?.status === 'REJECTED' ? 'destructive' : 'outline'}>
+                    {approvalFlow?.status === 'PENDING' ? '대기' :
+                     approvalFlow?.status === 'IN_PROGRESS' ? '진행중' :
+                     approvalFlow?.status === 'APPROVED' ? '승인완료' :
+                     approvalFlow?.status === 'REJECTED' ? '반려' : '알 수 없음'}
+                  </Badge>
+                ) : (
+                  getWorkflowStatusBadge(report.workflowStatus)
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between space-x-4">
-                {report.approvals?.map((approval, index) => (
-                  <div key={approval.id} className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      {getStepIcon(approval.stepOrder, approval.status)}
-                      <div className="text-center">
-                        <p className="text-sm font-medium">
-                          {getStepName(approval.stepOrder)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {approval.status === 'APPROVED' ? '승인 완료' :
-                           approval.status === 'REJECTED' ? '반려' :
-                           report.currentStep === approval.stepOrder ? '승인 대기' : '대기'}
-                        </p>
-                        {approval.approver && (
-                          <p className="text-xs text-gray-600 mt-1">
-                            {approval.approver.name}
-                          </p>
+              {useOrganizationApproval && approvalFlow ? (
+                // Organization-based approval flow display
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between space-x-4 overflow-x-auto">
+                    {approvalFlow.steps?.map((step, index) => (
+                      <div key={step.id} className="flex-shrink-0">
+                        <div className="text-center space-y-2">
+                          <div className="flex justify-center">
+                            {step.status === 'APPROVED' ? (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            ) : step.status === 'REJECTED' ? (
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            ) : approvalFlow.currentStep === step.stepOrder ? (
+                              <Clock className="w-4 h-4 text-yellow-600" />
+                            ) : (
+                              <Clock className="w-4 h-4 text-gray-400" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{step.approverRole}</p>
+                            <p className="text-xs text-gray-500">
+                              {step.approver ? step.approver.name : '미배정'}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {step.organization ? step.organization.name : ''}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {step.status === 'APPROVED' ? '승인완료' :
+                               step.status === 'REJECTED' ? '반려' :
+                               approvalFlow.currentStep === step.stepOrder ? '승인대기' : '대기'}
+                            </p>
+                            {step.isRequired && (
+                              <Badge variant="outline" className="text-xs mt-1">필수</Badge>
+                            )}
+                          </div>
+                        </div>
+                        {index < approvalFlow.steps.length - 1 && (
+                          <div className="flex justify-center mt-2">
+                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                          </div>
                         )}
                       </div>
-                    </div>
-                    {index < report.approvals.length - 1 && (
-                      <div className="flex justify-center">
-                        <ArrowRight className="w-4 h-4 text-gray-400" />
-                      </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 text-center text-sm text-gray-600">
-                현재 단계: <strong>{getStepName(report.currentStep)}</strong> 승인 대기
-              </div>
+                  <div className="mt-4 text-center text-sm text-gray-600">
+                    현재 단계: <strong>{approvalFlow.currentStep}/{approvalFlow.totalSteps}</strong>
+                  </div>
+                </div>
+              ) : (
+                // Legacy approval flow display
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between space-x-4">
+                    {report.approvals?.map((approval, index) => (
+                      <div key={approval.id} className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {getStepIcon(approval.stepOrder, approval.status)}
+                          <div className="text-center">
+                            <p className="text-sm font-medium">
+                              {getStepName(approval.stepOrder)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {approval.status === 'APPROVED' ? '승인 완료' :
+                               approval.status === 'REJECTED' ? '반려' :
+                               report.currentStep === approval.stepOrder ? '승인 대기' : '대기'}
+                            </p>
+                            {approval.approver && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                {approval.approver.name}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {index < report.approvals.length - 1 && (
+                          <div className="flex justify-center">
+                            <ArrowRight className="w-4 h-4 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 text-center text-sm text-gray-600">
+                    현재 단계: <strong>{getStepName(report.currentStep)}</strong> 승인 대기
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 

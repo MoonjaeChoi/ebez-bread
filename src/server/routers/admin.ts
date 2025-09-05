@@ -53,6 +53,17 @@ const backupConfigSchema = z.object({
   includeFiles: z.boolean(),
 })
 
+// 교회 정보 수정을 위한 스키마
+const churchUpdateSchema = z.object({
+  name: z.string().min(1, '교회명을 입력해주세요'),
+  email: z.string().email('유효한 이메일을 입력해주세요').optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  website: z.string().url('유효한 웹사이트 URL을 입력해주세요').optional().or(z.literal('')),
+  pastorName: z.string().optional(),
+  description: z.string().optional(),
+})
+
 export const adminRouter = router({
   // === 사용자 계정 관리 ===
   users: router({
@@ -740,6 +751,111 @@ export const adminRouter = router({
           throw new TRPCError({
             code: 'INTERNAL_SERVER_ERROR',
             message: '백업 설정 업데이트에 실패했습니다',
+          })
+        }
+      }),
+  }),
+
+  // === 교회 정보 관리 ===
+  church: router({
+    // 교회 정보 조회
+    getInfo: adminProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const church = await ctx.prisma.church.findUnique({
+            where: {
+              id: ctx.session.user.churchId,
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              website: true,
+              pastorName: true,
+              description: true,
+              logoUrl: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          })
+
+          if (!church) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: '교회 정보를 찾을 수 없습니다',
+            })
+          }
+
+          return church
+        } catch (error) {
+          if (error instanceof TRPCError) throw error
+          
+          logger.error('Failed to fetch church info', error as Error, {
+            userId: ctx.session.user.id,
+            churchId: ctx.session.user.churchId,
+            action: 'admin_church_info_fetch_error'
+          })
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: '교회 정보를 불러오는데 실패했습니다',
+          })
+        }
+      }),
+
+    // 교회 정보 수정 (SUPER_ADMIN만 가능)
+    updateInfo: adminProcedure
+      .input(churchUpdateSchema)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          // SUPER_ADMIN 권한 확인
+          if (ctx.session.user.role !== UserRole.SUPER_ADMIN) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: '교회 정보 수정 권한이 없습니다. 시스템 관리자만 수정할 수 있습니다.',
+            })
+          }
+
+          const church = await ctx.prisma.church.update({
+            where: {
+              id: ctx.session.user.churchId,
+            },
+            data: input,
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              address: true,
+              website: true,
+              pastorName: true,
+              description: true,
+              updatedAt: true,
+            },
+          })
+
+          logger.info('Church information updated', {
+            userId: ctx.session.user.id,
+            churchId: ctx.session.user.churchId,
+            action: 'admin_church_info_update',
+            metadata: {
+              updatedFields: Object.keys(input),
+            }
+          })
+
+          return church
+        } catch (error) {
+          if (error instanceof TRPCError) throw error
+          
+          logger.error('Failed to update church info', error as Error, {
+            userId: ctx.session.user.id,
+            churchId: ctx.session.user.churchId,
+            action: 'admin_church_info_update_error'
+          })
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: '교회 정보 수정에 실패했습니다',
           })
         }
       }),

@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { trpc } from '@/lib/trpc/client'
+import type { ProcessApprovalRequest } from '@/types/approval'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -26,6 +27,8 @@ interface ExpenseReportApprovalProps {
   isOpen: boolean
   onClose: () => void
   reportId: string
+  stepId?: string // For new organization-based approval system
+  useOrganizationApproval?: boolean // Flag to determine which system to use
   onSuccess?: () => void
 }
 
@@ -33,6 +36,8 @@ export function ExpenseReportApproval({
   isOpen, 
   onClose, 
   reportId,
+  stepId,
+  useOrganizationApproval = false,
   onSuccess 
 }: ExpenseReportApprovalProps) {
   const [selectedStatus, setSelectedStatus] = useState<string>('')
@@ -46,6 +51,7 @@ export function ExpenseReportApproval({
     { enabled: !!reportId && isOpen }
   )
 
+  // Legacy approval system
   const approveMutation = trpc.expenseReports.approve.useMutation({
     onSuccess: () => {
       const statusText: Record<string, string> = {
@@ -63,6 +69,25 @@ export function ExpenseReportApproval({
       toast.error(error.message)
     },
   })
+  
+  // New organization-based approval system
+  const processApprovalMutation = trpc.approvals.processApproval.useMutation({
+    onSuccess: () => {
+      const actionText = selectedStatus === 'APPROVED' ? '승인되었습니다' : '반려되었습니다'
+      toast.success(`지출결의서가 ${actionText}`)
+      handleClose()
+      onSuccess?.()
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    },
+  })
+  
+  // Get approval flow data for organization-based system
+  const { data: approvalFlow } = trpc.approvals.getApprovalFlowByTransaction.useQuery(
+    { transactionId: reportId },
+    { enabled: !!reportId && isOpen && useOrganizationApproval }
+  )
 
   const {
     register,
@@ -153,17 +178,38 @@ export function ExpenseReportApproval({
   }, [isOpen])
 
   const onSubmit = (data: ApprovalFormData) => {
-    // If rejecting, require rejection reason
-    if (data.status === 'REJECTED' && !data.rejectionReason?.trim()) {
-      toast.error('반려 사유를 입력해주세요')
-      return
-    }
+    if (useOrganizationApproval && stepId) {
+      // Use new organization-based approval system - only supports APPROVE/REJECT
+      if (data.status === 'PAID') {
+        toast.error('조직 기반 결재에서는 지급완료 처리가 지원되지 않습니다.')
+        return
+      }
+      
+      if (data.status === 'REJECTED' && !data.rejectionReason?.trim()) {
+        toast.error('반려 사유를 입력해주세요')
+        return
+      }
 
-    approveMutation.mutate({
-      id: reportId,
-      status: data.status,
-      rejectionReason: data.rejectionReason,
-    })
+      const approvalRequest: ProcessApprovalRequest = {
+        stepId: stepId,
+        approverId: '', // Will be filled by server from session
+        action: data.status === 'APPROVED' ? 'APPROVE' : 'REJECT',
+        comments: data.rejectionReason,
+      }
+      processApprovalMutation.mutate(approvalRequest)
+    } else {
+      // Use legacy approval system
+      if (data.status === 'REJECTED' && !data.rejectionReason?.trim()) {
+        toast.error('반려 사유를 입력해주세요')
+        return
+      }
+
+      approveMutation.mutate({
+        id: reportId,
+        status: data.status,
+        rejectionReason: data.rejectionReason,
+      })
+    }
   }
 
   const formatCurrency = (amount: number) => {
@@ -183,7 +229,7 @@ export function ExpenseReportApproval({
     })
   }
 
-  const isLoading = approveMutation.isPending
+  const isLoading = approveMutation.isPending || processApprovalMutation.isPending
 
   if (!isOpen) return null
 
@@ -225,7 +271,9 @@ export function ExpenseReportApproval({
           <div>
             <h2 className="text-xl font-semibold">지출결의서 승인 처리</h2>
             <p className="text-sm text-gray-600 mt-1">
-              지출결의서를 검토하고 승인 또는 반려 처리해주세요.
+              {useOrganizationApproval 
+                ? '조직 기반 결재에 따른 지출결의서 승인을 처리해주세요.'
+                : '지출결의서를 검토하고 승인 또는 반려 처리해주세요.'}
             </p>
           </div>
           <Button 
@@ -348,13 +396,15 @@ export function ExpenseReportApproval({
                         <span>승인</span>
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="PAID" id="paid" aria-describedby="paid-desc" />
-                      <Label htmlFor="paid" className="flex items-center space-x-2 cursor-pointer">
-                        <Coins className="w-4 h-4 text-blue-600" />
-                        <span>지급 완료</span>
-                      </Label>
-                    </div>
+                    {!useOrganizationApproval && (
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="PAID" id="paid" aria-describedby="paid-desc" />
+                        <Label htmlFor="paid" className="flex items-center space-x-2 cursor-pointer">
+                          <Coins className="w-4 h-4 text-blue-600" />
+                          <span>지급 완료</span>
+                        </Label>
+                      </div>
+                    )}
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="REJECTED" id="rejected" aria-describedby="rejected-desc" />
                       <Label htmlFor="rejected" className="flex items-center space-x-2 cursor-pointer">
@@ -387,13 +437,23 @@ export function ExpenseReportApproval({
                   <p className="text-sm text-yellow-800">
                     <strong>안내:</strong>
                     <span id="approved-desc" className={watchedStatus === 'APPROVED' ? '' : 'sr-only'}>
-                      {watchedStatus === 'APPROVED' && ' 승인 처리 시 재정 담당자에게 알림이 발송됩니다.'}
+                      {watchedStatus === 'APPROVED' && (
+                        useOrganizationApproval
+                          ? ' 승인 시 다음 단계 결재자에게 알림이 발송됩니다. 최종 단계일 경우 신청자에게 승인 완료 알림이 발송됩니다.'
+                          : ' 승인 처리 시 재정 담당자에게 알림이 발송됩니다.'
+                      )}
                     </span>
-                    <span id="paid-desc" className={watchedStatus === 'PAID' ? '' : 'sr-only'}>
-                      {watchedStatus === 'PAID' && ' 지급 완료 처리 시 신청자에게 완료 알림이 발송됩니다.'}
-                    </span>
+                    {!useOrganizationApproval && (
+                      <span id="paid-desc" className={watchedStatus === 'PAID' ? '' : 'sr-only'}>
+                        {watchedStatus === 'PAID' && ' 지급 완료 처리 시 신청자에게 완료 알림이 발송됩니다.'}
+                      </span>
+                    )}
                     <span id="rejected-desc" className={watchedStatus === 'REJECTED' ? '' : 'sr-only'}>
-                      {watchedStatus === 'REJECTED' && ' 반려 처리 시 신청자에게 사유와 함께 알림이 발송됩니다.'}
+                      {watchedStatus === 'REJECTED' && (
+                        useOrganizationApproval
+                          ? ' 반려 처리 시 신청자에게 사유와 함께 알림이 발송되며, 전체 결재 과정이 종료됩니다.'
+                          : ' 반려 처리 시 신청자에게 사유와 함께 알림이 발송됩니다.'
+                      )}
                     </span>
                   </p>
                 </div>

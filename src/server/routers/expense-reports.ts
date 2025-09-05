@@ -927,9 +927,7 @@ export const expenseReportsRouter = router({
         approvedReports,
         rejectedReports,
         paidReports,
-        totalAmount,
-        approvedAmount,
-        paidAmount,
+        amountsByStatus,
         categoryStats,
         monthlyStats,
         requesterStats,
@@ -940,17 +938,10 @@ export const expenseReportsRouter = router({
         ctx.prisma.expenseReport.count({ where: { ...where, status: 'REJECTED' } }),
         ctx.prisma.expenseReport.count({ where: { ...where, status: 'PAID' } }),
         
-        // Amount aggregations
-        ctx.prisma.expenseReport.aggregate({
+        // Optimized amount aggregations with single query using groupBy
+        ctx.prisma.expenseReport.groupBy({
+          by: ['status'],
           where,
-          _sum: { amount: true },
-        }),
-        ctx.prisma.expenseReport.aggregate({
-          where: { ...where, status: 'APPROVED' },
-          _sum: { amount: true },
-        }),
-        ctx.prisma.expenseReport.aggregate({
-          where: { ...where, status: 'PAID' },
           _sum: { amount: true },
         }),
 
@@ -985,6 +976,15 @@ export const expenseReportsRouter = router({
         }),
       ])
 
+      // Process amount by status from groupBy result
+      const totalAmount = amountsByStatus.reduce((sum, stat) => sum + (Number(stat._sum.amount) || 0), 0)
+      const approvedAmount = amountsByStatus
+        .filter(stat => stat.status === 'APPROVED')
+        .reduce((sum, stat) => sum + (Number(stat._sum.amount) || 0), 0)
+      const paidAmount = amountsByStatus
+        .filter(stat => stat.status === 'PAID')
+        .reduce((sum, stat) => sum + (Number(stat._sum.amount) || 0), 0)
+
       // Process monthly stats
       const monthlyData = Array.from({ length: 12 }, (_, i) => ({
         month: i + 1,
@@ -1004,10 +1004,10 @@ export const expenseReportsRouter = router({
         approvedReports,
         rejectedReports,
         paidReports,
-        totalAmount: Number(totalAmount._sum.amount) || 0,
-        approvedAmount: Number(approvedAmount._sum.amount) || 0,
-        paidAmount: Number(paidAmount._sum.amount) || 0,
-        averageAmount: totalReports > 0 ? (Number(totalAmount._sum.amount) || 0) / totalReports : 0,
+        totalAmount,
+        approvedAmount,
+        paidAmount,
+        averageAmount: totalReports > 0 ? totalAmount / totalReports : 0,
         approvalRate: totalReports > 0 ? ((approvedReports + paidReports) / totalReports) * 100 : 0,
         categoryStats: categoryStats.map(stat => ({
           category: stat.category,
@@ -1109,25 +1109,25 @@ export const expenseReportsRouter = router({
         }
       }
 
-      // 현재 사용 중인 예산 계산 (승인된 지출결의서)
-      const usedAmountResult = await ctx.prisma.expenseReport.aggregate({
-        where: {
-          budgetItemId,
-          status: { in: ['APPROVED', 'PAID'] },
-          ...(excludeExpenseId && { id: { not: excludeExpenseId } }),
-        },
-        _sum: { amount: true },
-      })
-
-      // 승인 대기 중인 예산 계산
-      const pendingAmountResult = await ctx.prisma.expenseReport.aggregate({
-        where: {
-          budgetItemId,
-          status: 'PENDING',
-          ...(excludeExpenseId && { id: { not: excludeExpenseId } }),
-        },
-        _sum: { amount: true },
-      })
+      // 현재 사용 중인 예산과 승인 대기 중인 예산을 병렬로 계산
+      const [usedAmountResult, pendingAmountResult] = await Promise.all([
+        ctx.prisma.expenseReport.aggregate({
+          where: {
+            budgetItemId,
+            status: { in: ['APPROVED', 'PAID'] },
+            ...(excludeExpenseId && { id: { not: excludeExpenseId } }),
+          },
+          _sum: { amount: true },
+        }),
+        ctx.prisma.expenseReport.aggregate({
+          where: {
+            budgetItemId,
+            status: 'PENDING',
+            ...(excludeExpenseId && { id: { not: excludeExpenseId } }),
+          },
+          _sum: { amount: true },
+        })
+      ])
 
       const totalBudget = Number(budgetExecution.totalBudget)
       const usedAmount = Number(usedAmountResult._sum.amount || 0)
@@ -1946,26 +1946,6 @@ async function updateBudgetExecution(budgetItemId: string, tx: any) {
   })
 }
 
-// 3단계 승인 워크플로우 단계 생성
-async function createApprovalSteps(expenseReportId: string, tx: any, approvers?: { step1?: string; step2?: string; step3?: string }) {
-  const steps = [
-    { stepOrder: 1, role: 'DEPARTMENT_ACCOUNTANT', assignedUserId: approvers?.step1 || null }, // 부서회계
-    { stepOrder: 2, role: 'DEPARTMENT_HEAD', assignedUserId: approvers?.step2 || null },       // 부서장
-    { stepOrder: 3, role: 'COMMITTEE_CHAIR', assignedUserId: approvers?.step3 || null },       // 교구장
-  ]
-
-  for (const step of steps) {
-    await tx.approvalStep.create({
-      data: {
-        expenseReportId,
-        stepOrder: step.stepOrder,
-        role: step.role as UserRole,
-        assignedUserId: step.assignedUserId,
-        status: 'PENDING',
-      },
-    })
-  }
-}
 
 // 자동 승인을 포함한 3단계 승인 워크플로우 단계 생성
 async function createApprovalStepsWithAutoApproval(
