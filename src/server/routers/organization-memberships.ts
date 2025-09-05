@@ -5,7 +5,7 @@ import type { PrismaClient, MembershipChangeType, OrganizationMembership } from 
 
 // Helper function to track membership changes
 async function createMembershipHistory(
-  prisma: PrismaClient,
+  prisma: PrismaClient | any, // Allow transaction client
   membershipId: string,
   changeType: MembershipChangeType,
   previousValue: any,
@@ -517,6 +517,349 @@ export const organizationMembershipsRouter = router({
       ])
 
       return updatedMembership
+    }),
+
+  // 일괄 멤버십 업데이트
+  bulkUpdate: adminProcedure
+    .input(z.object({
+      membershipIds: z.array(z.string()).min(1, '수정할 멤버십을 선택해주세요'),
+      roleId: z.string().optional().nullable(),
+      endDate: z.date().optional().nullable(),
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { membershipIds, roleId, endDate, reason } = input
+
+      // 모든 멤버십이 같은 교회 소속인지 확인
+      const memberships = await ctx.prisma.organizationMembership.findMany({
+        where: {
+          id: { in: membershipIds },
+          organization: {
+            churchId: ctx.session.user.churchId,
+          },
+        },
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          member: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      })
+
+      if (memberships.length !== membershipIds.length) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: '일부 멤버십을 찾을 수 없습니다',
+        })
+      }
+
+      // 직책 변경의 경우 유효성 확인
+      if (roleId !== undefined && roleId) {
+        const role = await ctx.prisma.organizationRole.findFirst({
+          where: {
+            id: roleId,
+            churchId: ctx.session.user.churchId,
+          },
+        })
+
+        if (!role) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: '직책을 찾을 수 없습니다',
+          })
+        }
+      }
+
+      // 트랜잭션으로 모든 업데이트 실행
+      const result = await ctx.prisma.$transaction(async (tx) => {
+        const updatePromises: Promise<any>[] = []
+        const historyPromises: Promise<any>[] = []
+
+        for (const membership of memberships) {
+          // 업데이트할 데이터 구성
+          const updateData: any = {}
+          let hasChanges = false
+
+          // 직책 변경
+          if (roleId !== undefined && roleId !== membership.roleId) {
+            updateData.roleId = roleId
+            hasChanges = true
+
+            // 변경 이력 추적
+            historyPromises.push(
+              createMembershipHistory(
+                tx,
+                membership.id,
+                'ROLE_CHANGED',
+                { roleId: membership.roleId, roleName: membership.role?.name },
+                { roleId },
+                ctx.session.user.id,
+                reason || '일괄 직책 변경'
+              )
+            )
+          }
+
+          // 종료일 변경 (활성화/비활성화)
+          if (endDate !== undefined && endDate !== membership.endDate) {
+            updateData.endDate = endDate
+            hasChanges = true
+
+            if (endDate && !membership.endDate) {
+              // 비활성화
+              updateData.isActive = false
+              historyPromises.push(
+                createMembershipHistory(
+                  tx,
+                  membership.id,
+                  'DEACTIVATED',
+                  { endDate: membership.endDate },
+                  { endDate },
+                  ctx.session.user.id,
+                  reason || '일괄 비활성화'
+                )
+              )
+            } else if (!endDate && membership.endDate) {
+              // 재활성화
+              updateData.isActive = true
+              historyPromises.push(
+                createMembershipHistory(
+                  tx,
+                  membership.id,
+                  'ACTIVATED',
+                  { endDate: membership.endDate },
+                  { endDate },
+                  ctx.session.user.id,
+                  reason || '일괄 재활성화'
+                )
+              )
+            }
+          }
+
+          // 변경사항이 있으면 업데이트 실행
+          if (hasChanges) {
+            updatePromises.push(
+              tx.organizationMembership.update({
+                where: { id: membership.id },
+                data: updateData,
+              })
+            )
+          }
+        }
+
+        // 모든 업데이트와 이력 저장을 병렬 실행
+        const [updatedMemberships] = await Promise.all([
+          Promise.all(updatePromises),
+          Promise.all(historyPromises),
+        ])
+
+        return updatedMemberships
+      })
+
+      return {
+        updatedCount: result.length,
+        message: `${result.length}개의 멤버십이 업데이트되었습니다`,
+      }
+    }),
+
+  // 일괄 조직 이동
+  bulkTransfer: adminProcedure
+    .input(z.object({
+      membershipIds: z.array(z.string()).min(1, '이동할 멤버십을 선택해주세요'),
+      targetOrganizationId: z.string().min(1, '대상 조직을 선택해주세요'),
+      keepRole: z.boolean().default(true), // 기존 직책 유지 여부
+      reason: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { membershipIds, targetOrganizationId, keepRole, reason } = input
+
+      // 대상 조직이 같은 교회 소속인지 확인
+      const targetOrganization = await ctx.prisma.organization.findFirst({
+        where: {
+          id: targetOrganizationId,
+          churchId: ctx.session.user.churchId,
+          isActive: true,
+        },
+      })
+
+      if (!targetOrganization) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: '대상 조직을 찾을 수 없습니다',
+        })
+      }
+
+      // 이동할 멤버십들이 같은 교회 소속인지 확인
+      const memberships = await ctx.prisma.organizationMembership.findMany({
+        where: {
+          id: { in: membershipIds },
+          organization: {
+            churchId: ctx.session.user.churchId,
+          },
+        },
+        include: {
+          member: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      })
+
+      if (memberships.length !== membershipIds.length) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: '일부 멤버십을 찾을 수 없습니다',
+        })
+      }
+
+      // 트랜잭션으로 조직 이동 실행
+      const result = await ctx.prisma.$transaction(async (tx) => {
+        const transferPromises: Promise<any>[] = []
+        const historyPromises: Promise<any>[] = []
+
+        for (const membership of memberships) {
+          // 같은 조직으로 이동하려는 경우 스킽
+          if (membership.organizationId === targetOrganizationId) {
+            continue
+          }
+
+          // 대상 조직에 이미 해당 교인의 활성 멤버십이 있는지 확인
+          const existingMembership = await tx.organizationMembership.findFirst({
+            where: {
+              memberId: membership.memberId,
+              organizationId: targetOrganizationId,
+              isActive: true,
+            },
+          })
+
+          if (existingMembership) {
+            // 기존 멤버십이 있으면 기존 것을 비활성화하고 새로운 멤버십 생성
+            await tx.organizationMembership.update({
+              where: { id: existingMembership.id },
+              data: { 
+                isActive: false, 
+                endDate: new Date() 
+              },
+            })
+
+            // 기존 멤버십 종료 이력 추가
+            historyPromises.push(
+              createMembershipHistory(
+                tx,
+                existingMembership.id,
+                'DEACTIVATED',
+                { isActive: true },
+                { isActive: false },
+                ctx.session.user.id,
+                '조직 이동으로 인한 기존 멤버십 종료'
+              )
+            )
+          }
+
+          // 기존 멤버십 종료
+          transferPromises.push(
+            tx.organizationMembership.update({
+              where: { id: membership.id },
+              data: {
+                isActive: false,
+                endDate: new Date(),
+              },
+            })
+          )
+
+          // 기존 멤버십 종료 이력 추가
+          historyPromises.push(
+            createMembershipHistory(
+              tx,
+              membership.id,
+              'TRANSFERRED_OUT',
+              { 
+                organizationId: membership.organizationId,
+                organizationName: membership.organization.name 
+              },
+              { 
+                organizationId: targetOrganizationId,
+                organizationName: targetOrganization.name 
+              },
+              ctx.session.user.id,
+              reason || '조직 이동'
+            )
+          )
+
+          // 새 조직에 멤버십 생성
+          const newMembershipData = {
+            memberId: membership.memberId,
+            organizationId: targetOrganizationId,
+            roleId: keepRole ? membership.roleId : null,
+            isPrimary: membership.isPrimary,
+            joinDate: new Date(),
+            isActive: true,
+          }
+
+          transferPromises.push(
+            tx.organizationMembership.create({
+              data: newMembershipData,
+            }).then((newMembership) => {
+              // 새 멤버십 생성 이력 추가
+              return createMembershipHistory(
+                tx,
+                newMembership.id,
+                'TRANSFERRED_IN',
+                { 
+                  organizationId: membership.organizationId,
+                  organizationName: membership.organization.name 
+                },
+                { 
+                  organizationId: targetOrganizationId,
+                  organizationName: targetOrganization.name 
+                },
+                ctx.session.user.id,
+                reason || '조직 이동'
+              )
+            })
+          )
+        }
+
+        // 모든 이동과 이력 저장을 병렬 실행
+        await Promise.all([
+          Promise.all(transferPromises),
+          Promise.all(historyPromises),
+        ])
+
+        return memberships.length
+      })
+
+      return {
+        transferredCount: result,
+        message: `${result}개의 멤버십이 ${targetOrganization.name}(으)로 이동되었습니다`,
+      }
     }),
 
   // 멤버십 종료 (비활성화)

@@ -10,6 +10,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator 
+} from '@/components/ui/dropdown-menu'
+import { 
   Users, 
   Crown, 
   Building2,
@@ -18,7 +25,6 @@ import {
   MoreHorizontal,
   Edit2,
   Trash2,
-  UserX,
   Phone,
   Mail,
   Calendar,
@@ -26,10 +32,19 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  RefreshCw
+  RefreshCw,
+  CheckSquare,
+  Square,
+  Zap,
+  UserCheck,
+  UserX,
+  Move,
+  Settings,
+  ChevronDown
 } from 'lucide-react'
 import { trpc } from '@/lib/trpc/client'
 import { OrganizationMemberEditDialog } from './OrganizationMemberEditDialog'
+import { BulkActionDialog } from './BulkActionDialog'
 
 interface Organization {
   id: string
@@ -81,6 +96,14 @@ export function OrganizationMembershipList({
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active')
   const [selectedMembership, setSelectedMembership] = useState<OrganizationMembership | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  
+  // 다중 선택 상태
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set())
+  const [showBulkActions, setShowBulkActions] = useState(false)
+  
+  // 일괄 작업 상태
+  const [bulkActionType, setBulkActionType] = useState<'role' | 'organization' | 'activate' | 'deactivate' | null>(null)
+  const [showBulkDialog, setShowBulkDialog] = useState(false)
   
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1)
@@ -142,17 +165,24 @@ export function OrganizationMembershipList({
     setSelectedRole('__ALL_ROLES__')
     setStatusFilter('active')
     setCurrentPage(1)
+    setSelectedMemberIds(new Set())
+    setShowBulkActions(false)
   }
 
   // 조직 변경 시 필터 초기화
   const handleOrganizationChange = (orgId: string) => {
     setSelectedOrganization(orgId)
     setCurrentPage(1)
+    setSelectedMemberIds(new Set())
+    setShowBulkActions(false)
   }
 
   // 페이지 변경
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
+    // 페이지 변경 시 선택 상태 초기화
+    setSelectedMemberIds(new Set())
+    setShowBulkActions(false)
   }
 
   // 구성원 편집
@@ -170,6 +200,57 @@ export function OrganizationMembershipList({
   const handleCloseEditDialog = () => {
     setShowEditDialog(false)
     setSelectedMembership(null)
+  }
+
+  // 다중 선택 관리 함수들
+  const handleSelectMember = (membershipId: string) => {
+    const newSelected = new Set(selectedMemberIds)
+    if (newSelected.has(membershipId)) {
+      newSelected.delete(membershipId)
+    } else {
+      newSelected.add(membershipId)
+    }
+    setSelectedMemberIds(newSelected)
+    setShowBulkActions(newSelected.size > 0)
+  }
+
+  const handleSelectAll = () => {
+    if (!membershipData?.data) return
+    
+    const allMemberIds = membershipData.data.map(m => m.id)
+    const currentSelected = selectedMemberIds
+    
+    if (currentSelected.size === allMemberIds.length) {
+      // 모두 선택된 상태면 모두 해제
+      setSelectedMemberIds(new Set())
+      setShowBulkActions(false)
+    } else {
+      // 모두 선택
+      setSelectedMemberIds(new Set(allMemberIds))
+      setShowBulkActions(true)
+    }
+  }
+
+  const handleDeselectAll = () => {
+    setSelectedMemberIds(new Set())
+    setShowBulkActions(false)
+  }
+
+  const isAllSelected = membershipData?.data 
+    ? selectedMemberIds.size === membershipData.data.length && membershipData.data.length > 0
+    : false
+  
+  const isPartiallySelected = selectedMemberIds.size > 0 && !isAllSelected
+
+  // 일괄 작업 핸들러
+  const handleBulkAction = (actionType: 'role' | 'organization' | 'activate' | 'deactivate') => {
+    setBulkActionType(actionType)
+    setShowBulkDialog(true)
+  }
+
+  const getSelectedMemberships = () => {
+    if (!membershipData?.data) return []
+    return membershipData.data.filter(m => selectedMemberIds.has(m.id))
   }
 
   const getLevelColor = (orgLevel: string) => {
@@ -370,18 +451,90 @@ export function OrganizationMembershipList({
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
                   구성원 목록
+                  {memberships && memberships.length > 0 && (
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className="ml-2"
+                      aria-label="모든 구성원 선택"
+                    />
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  {pagination ? (
-                    <>
-                      전체 {pagination.totalCount}명 중 {((pagination.currentPage - 1) * pagination.limit) + 1}-
-                      {Math.min(pagination.currentPage * pagination.limit, pagination.totalCount)}명 표시
-                    </>
+                  {selectedMemberIds.size > 0 ? (
+                    <span className="text-blue-600 font-medium">
+                      {selectedMemberIds.size}명 선택됨
+                    </span>
                   ) : (
-                    '구성원을 불러오는 중...'
+                    pagination ? (
+                      <>
+                        전체 {pagination.totalCount}명 중 {((pagination.currentPage - 1) * pagination.limit) + 1}-
+                        {Math.min(pagination.currentPage * pagination.limit, pagination.totalCount)}명 표시
+                      </>
+                    ) : (
+                      '구성원을 불러오는 중...'
+                    )
                   )}
                 </CardDescription>
               </div>
+              
+              {/* 일괄 작업 버튼들 */}
+              {selectedMemberIds.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeselectAll}
+                    className="text-xs"
+                  >
+                    선택 해제
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="text-xs flex items-center gap-1"
+                      >
+                        <Zap className="h-3 w-3" />
+                        일괄 작업
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem 
+                        className="flex items-center gap-2"
+                        onClick={() => handleBulkAction('role')}
+                      >
+                        <Crown className="h-4 w-4" />
+                        <span>직책 일괄 변경</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="flex items-center gap-2"
+                        onClick={() => handleBulkAction('organization')}
+                      >
+                        <Move className="h-4 w-4" />
+                        <span>조직 일괄 이동</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="flex items-center gap-2"
+                        onClick={() => handleBulkAction('activate')}
+                      >
+                        <UserCheck className="h-4 w-4" />
+                        <span>일괄 활성화</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        className="flex items-center gap-2 text-red-600"
+                        onClick={() => handleBulkAction('deactivate')}
+                      >
+                        <UserX className="h-4 w-4" />
+                        <span>일괄 비활성화</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
               
               {/* 페이지네이션 정보 */}
               {pagination && pagination.totalPages > 1 && (
@@ -419,10 +572,22 @@ export function OrganizationMembershipList({
                       membership.isActive 
                         ? 'border-gray-200 hover:border-gray-300' 
                         : 'border-gray-100 bg-gray-50'
+                    } ${
+                      selectedMemberIds.has(membership.id) 
+                        ? 'ring-2 ring-blue-500 border-blue-300 bg-blue-50' 
+                        : ''
                     }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-4">
+                        {/* 체크박스 */}
+                        <Checkbox
+                          checked={selectedMemberIds.has(membership.id)}
+                          onCheckedChange={() => handleSelectMember(membership.id)}
+                          className="mt-1"
+                          aria-label={`${membership.member.name} 선택`}
+                        />
+                        
                         {/* 멤버 정보 */}
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
@@ -598,6 +763,21 @@ export function OrganizationMembershipList({
         onClose={handleCloseEditDialog}
         membership={selectedMembership}
         onSuccess={handleEditSuccess}
+      />
+
+      {/* 일괄 작업 모달 */}
+      <BulkActionDialog
+        open={showBulkDialog}
+        onClose={() => setShowBulkDialog(false)}
+        actionType={bulkActionType}
+        selectedMemberships={getSelectedMemberships()}
+        onSuccess={() => {
+          setShowBulkDialog(false)
+          setBulkActionType(null)
+          setSelectedMemberIds(new Set())
+          setShowBulkActions(false)
+          refetch() // 목록 새로고침
+        }}
       />
     </div>
   )
