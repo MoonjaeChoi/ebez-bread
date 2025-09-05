@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -40,6 +43,19 @@ interface SettingItem {
   category: string
 }
 
+// 교회 정보 수정 폼 스키마
+const churchInfoSchema = z.object({
+  name: z.string().min(1, '교회명을 입력해주세요'),
+  email: z.string().email('유효한 이메일을 입력해주세요').optional().or(z.literal('')),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  website: z.string().url('유효한 웹사이트 URL을 입력해주세요').optional().or(z.literal('')),
+  pastorName: z.string().optional(),
+  description: z.string().optional(),
+})
+
+type ChurchInfoFormData = z.infer<typeof churchInfoSchema>
+
 export default function AdminSettingsPage() {
   const { data: session, status } = useSession()
   const { accessibleMenus } = usePermissions()
@@ -48,9 +64,44 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<SettingItem[]>([])
   const [hasChanges, setHasChanges] = useState(false)
 
+  // 교회 정보 폼
+  const {
+    register: churchRegister,
+    handleSubmit: handleChurchSubmit,
+    formState: { errors: churchErrors, isDirty: isChurchDirty },
+    reset: resetChurchForm,
+    setValue: setChurchValue,
+  } = useForm<ChurchInfoFormData>({
+    resolver: zodResolver(churchInfoSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      website: '',
+      pastorName: '',
+      description: '',
+    }
+  })
+
   // tRPC queries and mutations
   const { data: settingsData, isLoading: settingsLoading, refetch: refetchSettings } = 
     trpc.admin.settings.getAll.useQuery()
+
+  // 교회 정보 조회
+  const { data: churchData, isLoading: churchLoading, refetch: refetchChurchInfo } = 
+    trpc.admin.church.getInfo.useQuery()
+
+  // 교회 정보 수정 뮤테이션
+  const churchUpdateMutation = trpc.admin.church.updateInfo.useMutation({
+    onSuccess: () => {
+      toast.success('교회 정보가 성공적으로 수정되었습니다')
+      refetchChurchInfo()
+    },
+    onError: (error) => {
+      toast.error(error.message || '교회 정보 수정에 실패했습니다')
+    },
+  })
 
   const updateSettingMutation = trpc.admin.settings.update.useMutation({
     onSuccess: () => {
@@ -80,6 +131,21 @@ export default function AdminSettingsPage() {
       setSettings(settingsData)
     }
   }, [settingsData])
+
+  // 교회 정보 폼 초기화
+  useEffect(() => {
+    if (churchData) {
+      resetChurchForm({
+        name: churchData.name || '',
+        email: churchData.email || '',
+        phone: churchData.phone || '',
+        address: churchData.address || '',
+        website: churchData.website || '',
+        pastorName: churchData.pastorName || '',
+        description: churchData.description || '',
+      })
+    }
+  }, [churchData, resetChurchForm])
 
   if (status === 'loading') {
     return (
@@ -121,6 +187,23 @@ export default function AdminSettingsPage() {
       } catch (error) {
         console.error('Failed to update setting:', setting.key, error)
       }
+    }
+  }
+
+  // 교회 정보 수정 핸들러
+  const onChurchInfoSubmit = async (data: ChurchInfoFormData) => {
+    try {
+      await churchUpdateMutation.mutateAsync({
+        name: data.name,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        address: data.address || undefined,
+        website: data.website || undefined,
+        pastorName: data.pastorName || undefined,
+        description: data.description || undefined,
+      })
+    } catch (error) {
+      console.error('Failed to update church info:', error)
     }
   }
 
@@ -263,54 +346,177 @@ export default function AdminSettingsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="grid gap-6 md:grid-cols-2">
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        교회 정보
-                      </h3>
-                      <div className="space-y-4">
-                        {getSetting('church_name') && (
-                          <SettingInput 
-                            setting={getSetting('church_name')!}
-                            placeholder="교회명을 입력하세요"
-                          />
-                        )}
+                  {/* 교회 정보 수정 폼 (시스템 관리자만) */}
+                  {session?.user?.role === 'SUPER_ADMIN' && (
+                    <form onSubmit={handleChurchSubmit(onChurchInfoSubmit)} className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-medium flex items-center gap-2">
+                            <Building2 className="h-4 w-4" />
+                            교회 정보
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            시스템 관리자만 교회 정보를 수정할 수 있습니다
+                          </p>
+                        </div>
+                        <Button 
+                          type="submit"
+                          disabled={!isChurchDirty || churchUpdateMutation.isPending || churchLoading}
+                          size="sm"
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {churchUpdateMutation.isPending ? '저장 중...' : '저장'}
+                        </Button>
                       </div>
-                    </div>
 
+                      {churchLoading ? (
+                        <div className="text-center py-4">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-r-transparent mx-auto" />
+                        </div>
+                      ) : (
+                        <div className="grid gap-6 md:grid-cols-2">
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="churchName">
+                                교회명 <span className="text-red-500">*</span>
+                              </Label>
+                              <Input
+                                id="churchName"
+                                {...churchRegister('name')}
+                                placeholder="교회명을 입력하세요"
+                                className={churchErrors.name ? 'border-red-500' : ''}
+                              />
+                              {churchErrors.name && (
+                                <p className="text-sm text-red-500">{churchErrors.name.message}</p>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="churchEmail">교회 이메일</Label>
+                              <Input
+                                id="churchEmail"
+                                type="email"
+                                {...churchRegister('email')}
+                                placeholder="church@example.com"
+                                className={churchErrors.email ? 'border-red-500' : ''}
+                              />
+                              {churchErrors.email && (
+                                <p className="text-sm text-red-500">{churchErrors.email.message}</p>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="churchPhone">교회 전화번호</Label>
+                              <Input
+                                id="churchPhone"
+                                type="tel"
+                                {...churchRegister('phone')}
+                                placeholder="02-1234-5678"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="churchAddress">교회 주소</Label>
+                              <Input
+                                id="churchAddress"
+                                {...churchRegister('address')}
+                                placeholder="서울시 강남구..."
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="churchWebsite">교회 홈페이지</Label>
+                              <Input
+                                id="churchWebsite"
+                                type="url"
+                                {...churchRegister('website')}
+                                placeholder="https://church.example.com"
+                                className={churchErrors.website ? 'border-red-500' : ''}
+                              />
+                              {churchErrors.website && (
+                                <p className="text-sm text-red-500">{churchErrors.website.message}</p>
+                              )}
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="pastorName">담임목사</Label>
+                              <Input
+                                id="pastorName"
+                                {...churchRegister('pastorName')}
+                                placeholder="담임목사님 성함"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="churchDescription">교회 소개</Label>
+                              <Textarea
+                                id="churchDescription"
+                                {...churchRegister('description')}
+                                placeholder="교회 소개를 입력하세요"
+                                rows={3}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </form>
+                  )}
+
+                  {/* 시스템 관리자가 아닌 경우 읽기 전용 표시 */}
+                  {session?.user?.role !== 'SUPER_ADMIN' && (
                     <div className="space-y-4">
-                      <h3 className="text-lg font-medium flex items-center gap-2">
-                        <Globe className="h-4 w-4" />
-                        연락처 정보
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <Label>교회 이메일</Label>
-                          <Input
-                            type="email"
-                            placeholder="church@example.com"
-                            value={session?.user?.churchName || ''}
-                            disabled
-                          />
-                          <p className="text-sm text-muted-foreground mt-1">
-                            교회 기본 정보에서 설정됩니다
-                          </p>
-                        </div>
-                        <div>
-                          <Label>교회 전화번호</Label>
-                          <Input
-                            type="tel"
-                            placeholder="02-1234-5678"
-                            disabled
-                          />
-                          <p className="text-sm text-muted-foreground mt-1">
-                            교회 기본 정보에서 설정됩니다
-                          </p>
-                        </div>
+                      <div>
+                        <h3 className="text-lg font-medium flex items-center gap-2">
+                          <Building2 className="h-4 w-4" />
+                          교회 정보
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          교회 정보는 시스템 관리자만 수정할 수 있습니다
+                        </p>
                       </div>
+                      
+                      {churchLoading ? (
+                        <div className="text-center py-4">
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-r-transparent mx-auto" />
+                        </div>
+                      ) : churchData && (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-4">
+                            <div>
+                              <Label>교회명</Label>
+                              <Input value={churchData.name || ''} disabled />
+                            </div>
+                            <div>
+                              <Label>교회 이메일</Label>
+                              <Input value={churchData.email || ''} disabled />
+                            </div>
+                            <div>
+                              <Label>교회 전화번호</Label>
+                              <Input value={churchData.phone || ''} disabled />
+                            </div>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <Label>교회 주소</Label>
+                              <Input value={churchData.address || ''} disabled />
+                            </div>
+                            <div>
+                              <Label>교회 홈페이지</Label>
+                              <Input value={churchData.website || ''} disabled />
+                            </div>
+                            <div>
+                              <Label>담임목사</Label>
+                              <Input value={churchData.pastorName || ''} disabled />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  )}
 
                   <Separator />
 
@@ -497,7 +703,7 @@ export default function AdminSettingsPage() {
                         <h4 className="font-medium text-blue-800 mb-2">현재 비밀번호 정책</h4>
                         <ul className="text-sm text-blue-600 space-y-1">
                           <li>• 최소 8자 이상</li>
-                          <li>• 영문 대소문자, 숫자 조합 (개발 단계에서는 단순 비밀번호 허용)</li>
+                          <li>• 8자 이상 길이 조건만 적용 (복잡성 조건 제거)</li>
                           <li>• 90일마다 변경 권장</li>
                           <li>• 최근 3개 비밀번호 재사용 금지</li>
                         </ul>

@@ -71,15 +71,7 @@ export function validatePasswordStrength(password: string): { isValid: boolean; 
     errors.push(`비밀번호는 최대 ${MAX_PASSWORD_LENGTH}자를 초과할 수 없습니다`)
   }
 
-  // Check for at least one number
-  if (!/\d/.test(password)) {
-    errors.push('비밀번호는 최소 하나의 숫자를 포함해야 합니다')
-  }
-
-  // Check for at least one letter
-  if (!/[a-zA-Z]/.test(password)) {
-    errors.push('비밀번호는 최소 하나의 영문자를 포함해야 합니다')
-  }
+  // 복잡성 조건 제거: 8자 이상 길이 조건만 유지
 
   // Check for common weak passwords
   const weakPasswords = ['password', '123456', 'qwerty', 'admin', 'test']
