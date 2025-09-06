@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -182,28 +182,17 @@ export default function AccountsPage() {
                 ))}
               </TabsList>
               
-              <TabsContent value="ALL" className="mt-4">
+              {/* 단일 AccountTree 컴포넌트로 모든 탭 처리 */}
+              <div className="mt-4">
                 <AccountTree
+                  accountType={selectedAccountType === 'ALL' ? undefined : selectedAccountType as AccountType}
                   onSelectAccount={handleSelectAccount}
                   onCreateAccount={handleCreateAccount}
                   onEditAccount={handleEditAccount}
                   selectedAccountId={selectedAccount?.id}
                   churchOnly={churchOnly}
                 />
-              </TabsContent>
-              
-              {Object.keys(accountTypeLabels).map((accountType) => (
-                <TabsContent key={accountType} value={accountType} className="mt-4">
-                  <AccountTree
-                    accountType={accountType as AccountType}
-                    onSelectAccount={handleSelectAccount}
-                    onCreateAccount={handleCreateAccount}
-                    onEditAccount={handleEditAccount}
-                    selectedAccountId={selectedAccount?.id}
-                    churchOnly={churchOnly}
-                  />
-                </TabsContent>
-              ))}
+              </div>
             </Tabs>
           </div>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { ChevronDown, ChevronRight, Plus, Edit, Trash2, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +61,7 @@ const accountTypeColors: Record<AccountType, string> = {
   EXPENSE: 'bg-purple-100 text-purple-800'
 }
 
-export function AccountTree({
+const AccountTreeComponent = ({
   onSelectAccount,
   onCreateAccount,
   onEditAccount,
@@ -70,26 +70,32 @@ export function AccountTree({
   maxLevel = 4,
   accountType,
   churchOnly = false
-}: AccountTreeProps) {
+}: AccountTreeProps) => {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const { toast } = useToast()
 
-  const { data: accountTree, isLoading, refetch, error } = trpc.accountCodes.getTree.useQuery({
-    type: accountType,
+  // 전체 계정 데이터를 한 번에 조회
+  const { data: allAccountTree, isLoading, refetch, error } = trpc.accountCodes.getTree.useQuery({
     churchOnly,
     maxLevel
   })
 
-  // 디버깅을 위한 로그
-  console.log('AccountTree Debug:', {
-    accountType,
-    churchOnly,
-    maxLevel,
-    accountTree,
-    isLoading,
-    error
-  })
+  // 클라이언트에서 필터링
+  const accountTree = useMemo(() => {
+    if (!allAccountTree || !accountType) return allAccountTree
+    
+    const filterByType = (accounts: AccountCodeWithChildren[]): AccountCodeWithChildren[] => {
+      return accounts
+        .filter(account => account.type === accountType)
+        .map(account => ({
+          ...account,
+          children: account.children ? filterByType(account.children) : undefined
+        }))
+    }
+    
+    return filterByType(allAccountTree)
+  }, [allAccountTree, accountType])
 
   const deleteAccount = trpc.accountCodes.delete.useMutation({
     onSuccess: () => {
@@ -333,3 +339,5 @@ export function AccountTree({
     </>
   )
 }
+
+export const AccountTree = memo(AccountTreeComponent)
